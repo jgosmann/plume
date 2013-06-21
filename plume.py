@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from numpy.linalg import norm
-from qrsim.tcpclient import TCPClient
+from qrsim.tcpclient import TCPClient, UAVControls
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,30 +17,13 @@ args = parser.parse_args()
 gp = gaussian_process.GaussianProcess(nugget=0.5)
 
 
-# FIXME move to py-qrsim-tcpclient and add method taking this object as
-# argument and deciding that way which step method to call
-class UavControls(object):
-    def __init__(self, num_uavs, type):
-        dim_for_type = {'ctrl': 5, 'vel': 3, 'wp': 4}
-        if not type in dim_for_type:
-            raise ValueError('Not a valid UAV control type.')
-
-        self._num_uavs = num_uavs
-        self._type = type
-        self._U = np.empty((num_uavs, dim_for_type[type]))
-
-    num_uavs = property(lambda self: self._num_uavs)
-    type = property(lambda self: self._type)
-    U = property(lambda self: self._U)
-
-
 class RandomMovement(object):
     def __init__(self, maxv, height):
         self.maxv = maxv
         self.height = height
 
     def get_controls(self, noisy_states):
-        controls = UavControls(len(noisy_states), 'vel')
+        controls = UAVControls(len(noisy_states), 'vel')
         for uav in xrange(len(noisy_states)):
             # random velocity direction scaled by the max allowed velocity
             xy_vel = rnd.rand(2) - 0.5
