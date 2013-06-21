@@ -122,9 +122,8 @@ class Controller(object):
                 recorder.record(step)
 
 
-client = TaskPlumeClient()
-client.connect_to(args.ip[0], args.port[0])
-try:
+with TaskPlumeClient() as client:
+    client.connect_to(args.ip[0], args.port[0])
     duration_in_steps = 200
     movement_behavior = RandomMovement(3, 10)
     controller = Controller(client, movement_behavior)
@@ -139,8 +138,6 @@ try:
     samples = gp.predict(locations)
     client.set_samples(samples)
     rewards = client.get_reward()
-finally:
-    client.disconnect()
 
 ep = np.linspace(-40, 40)
 x, y = np.meshgrid(ep, ep)
