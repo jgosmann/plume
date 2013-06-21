@@ -1,44 +1,24 @@
 #!/usr/bin/env python
 
-from numpy.linalg import norm
-from qrsim.tcpclient import TCPClient, UAVControls
+from qrsim.tcpclient import TCPClient
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
-import numpy.random as rnd
+import tables
 
 from sklearn import gaussian_process
 
 parser = argparse.ArgumentParser()
+parser.add_argument('conf', nargs=1, type=str)
+parser.add_argument('output', nargs=1, type=str)
 parser.add_argument('ip', nargs='?', type=str, default=['127.0.0.1'])
 parser.add_argument('port', nargs='?', type=int, default=[10000])
 args = parser.parse_args()
 
 gp = gaussian_process.GaussianProcess(nugget=0.5)
 
-
-class RandomMovement(object):
-    def __init__(self, maxv, height):
-        self.maxv = maxv
-        self.height = height
-
-    def get_controls(self, noisy_states):
-        controls = UAVControls(len(noisy_states), 'vel')
-        for uav in xrange(len(noisy_states)):
-            # random velocity direction scaled by the max allowed velocity
-            xy_vel = rnd.rand(2) - 0.5
-            xy_vel /= norm(xy_vel)
-            controls.U[uav, :2] = 0.5 * self.maxv * xy_vel
-            # if the uav is going astray we point it back to the center
-            p = np.asarray(noisy_states[uav].position[:2])
-            if norm(p) > 100:
-                controls.U[uav, :2] = -0.8 * self.maxv * p / norm(p)
-            # control height
-            controls.U[uav, 2] = max(-self.maxv, min(
-                self.maxv,
-                -0.25 * self.maxv * (noisy_states[uav].z + self.height)))
-            print(noisy_states[uav].z, self.height, controls.U[uav, 2])
-        return controls
+conf = {}
+execfile(args.conf[0], conf)
 
 
 class TaskPlumeClient(TCPClient):
@@ -59,40 +39,61 @@ class TaskPlumeClient(TCPClient):
 
 
 class GeneralRecorder(object):
-    def __init__(self, client):
+    def __init__(self, fileh, client, expected_steps=None):
+        self.fileh = fileh
         self.client = client
+        self.expected_steps = None
 
-    def init(self, duration_in_steps):
-        self.positions = np.empty((client.numUAVs, duration_in_steps, 3))
+    def init(self):
+        self._positions = self.fileh.create_earray(
+            self.fileh.root, 'positions', tables.FloatAtom(),
+            (self.client.numUAVs, 0, 3), expectedrows=self.expected_steps,
+            title='Noiseless positions (numUAVs x timesteps x 3) of the UAVs '
+            'over time.')
 
-    def record(self, step):
-        self.positions[:, step, :] = [state.position for state in client.state]
+    def record(self):
+        self._positions.append([(state.position,) for state in client.state])
+
+    positions = property(lambda self: self._positions.read())
 
 
 class TaskPlumeRecorder(GeneralRecorder):
-    def __init__(self, client, predictor):
-        GeneralRecorder.__init__(self, client)
+    def __init__(self, fileh, client, predictor):
+        GeneralRecorder.__init__(self, fileh, client)
         self.predictor = predictor
 
     def init(self, duration_in_steps):
-        GeneralRecorder.init(self, duration_in_steps)
-        self.locations = client.get_locations()
-        self.plume_measurements = np.empty(duration_in_steps)
-        self.rewards = np.empty(duration_in_steps)
+        GeneralRecorder.init(self)
+        self._locations = client.get_locations()
+        self._plume_measurements = self.fileh.create_earray(
+            self.fileh.root, 'plume_measurements', tables.FloatAtom(),
+            (self.client.numUAVs, 0), expectedrows=self.expected_steps,
+            title='Plume measurements (numUAVs x timesteps).')
+        self._rewards = self.fileh.create_earray(
+            self.fileh.root, 'rewards', tables.FloatAtom(), (0,),
+            expectedrows=self.expected_steps,
+            title='Total reward in each timestep.')
 
-    def record(self, step):
-        GeneralRecorder.record(self, step)
-        self.plume_measurements[step] = \
-            self.client.get_plume_sensor_outputs()[0]
-        if step > 0:
+    def record(self):
+        GeneralRecorder.record(self)
+
+        self._plume_measurements.append(np.atleast_2d(
+            self.client.get_plume_sensor_outputs()).T)
+
+        reward = -np.inf
+        if len(self.plume_measurements) > 1:
+            print(len(self.positions.read()), len(self.plume_measurements))
             self.predictor.fit(
-                self.positions[0, :(step + 1), :],
-                self.plume_measurements[:(step + 1)])
+                self.positions.read().reshape(
+                    (len(self.plume_measurements), -1)),
+                self.plume_measurements.read().flat)
             samples = self.predictor.predict(self.locations)
             self.client.set_samples(samples)
-            self.rewards[step] = self.client.get_reward()
-        else:
-            self.rewards[step] = -np.inf
+            reward = self.client.get_reward()
+        self._rewards.append([reward])
+
+    plume_measurements = property(lambda self: self._plume_measurements.read())
+    rewards = property(lambda self: self._rewards.read())
 
 
 class Controller(object):
@@ -119,38 +120,39 @@ class Controller(object):
                 self.client.noisy_state)
             self.client.step_vel(self.client.timestep, controls.U)
             for recorder in self.recorders:
-                recorder.record(step)
+                recorder.record()
 
 
 with TaskPlumeClient() as client:
     client.connect_to(args.ip[0], args.port[0])
     duration_in_steps = 200
-    movement_behavior = RandomMovement(3, 10)
+    movement_behavior = conf['behavior']
     controller = Controller(client, movement_behavior)
-    recorder = TaskPlumeRecorder(client, gp)
-    controller.add_recorder(recorder)
-    controller.init(
-        'TaskPlumeSingleSourceGaussianDefaultControls', duration_in_steps)
-    controller.run(duration_in_steps)
+    with tables.open_file(args.output[0], 'w') as fileh:
+        recorder = TaskPlumeRecorder(fileh, client, gp)
+        controller.add_recorder(recorder)
+        controller.init(
+            'TaskPlumeSingleSourceGaussianDefaultControls', duration_in_steps)
+        controller.run(duration_in_steps)
 
-    gp.fit(recorder.positions[0, :, :], recorder.plume_measurements)
-    locations = client.get_locations()
-    samples = gp.predict(locations)
-    client.set_samples(samples)
-    rewards = client.get_reward()
+        gp.fit(recorder.positions[0, :, :], recorder.plume_measurements)
+        locations = client.get_locations()
+        samples = gp.predict(locations)
+        client.set_samples(samples)
+        rewards = client.get_reward()
 
-ep = np.linspace(-40, 40)
-x, y = np.meshgrid(ep, ep)
-print(x.shape)
-xy = np.hstack((
-    np.atleast_2d(x.flat).T,
-    np.atleast_2d(y.flat).T,
-    np.repeat([[10]], np.prod(x.shape), 0)))
-print(xy.shape)
-pred = gp.predict(xy).reshape((ep.size, ep.size))
-print(pred.shape)
-plt.imshow(pred)
+        ep = np.linspace(-40, 40)
+        x, y = np.meshgrid(ep, ep)
+        print(x.shape)
+        xy = np.hstack((
+            np.atleast_2d(x.flat).T,
+            np.atleast_2d(y.flat).T,
+            np.repeat([[10]], np.prod(x.shape), 0)))
+        print(xy.shape)
+        pred = gp.predict(xy).reshape((ep.size, ep.size))
+        print(pred.shape)
+        plt.imshow(pred)
 
-plt.figure()
-plt.plot(recorder.rewards[2:])
-plt.show()
+        plt.figure()
+        plt.plot(recorder.rewards[2:])
+        plt.show()
