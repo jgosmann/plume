@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from behaviors import ToMaxVariance
 from qrsim.tcpclient import TCPClient
 from recorder import TaskPlumeRecorder
 import argparse
@@ -61,7 +62,7 @@ class Controller(object):
             # FIXME record controls
             controls = self.movement_behavior.get_controls(
                 self.client.noisy_state)
-            self.client.step_vel(self.client.timestep, controls.U)
+            self.client.step(self.client.timestep, controls)
             for recorder in self.recorders:
                 recorder.record()
 
@@ -69,10 +70,11 @@ class Controller(object):
 with TaskPlumeClient() as client:
     client.connect_to(args.ip[0], args.port[0])
     duration_in_steps = 200
-    movement_behavior = conf['behavior']
-    controller = Controller(client, movement_behavior)
+    #movement_behavior = conf['behavior']
     with tables.open_file(args.output[0], 'w') as fileh:
         recorder = TaskPlumeRecorder(fileh, client, gp, duration_in_steps)
+        movement_behavior = ToMaxVariance(10, recorder)
+        controller = Controller(client, movement_behavior)
         controller.add_recorder(recorder)
         controller.init(
             'TaskPlumeSingleSourceGaussianDefaultControls', duration_in_steps)
