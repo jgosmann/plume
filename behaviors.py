@@ -42,6 +42,12 @@ class ToMaxVariance(object):
 
         controls = UAVControls(len(noisy_states), 'wp')
         for uav in xrange(len(noisy_states)):
+            if noisy_states[uav].z > -8:
+                controls.U[uav, :2] = noisy_states[uav].position[:2]
+                controls.U[uav, 2] = -self.height
+                controls.U[uav, 3] = noisy_states[uav].psi
+                break
+
             gp = gaussian_process.GaussianProcess(nugget=0.5)
             gp.fit(
                 self.recorder.positions[uav, :, :2],
@@ -58,5 +64,6 @@ class ToMaxVariance(object):
             controls.U[uav, 0] = ep[wp_idx[0]]
             controls.U[uav, 1] = ep[wp_idx[1]]
             controls.U[uav, 2] = -self.height
-            controls.U[uav, 3] = noisy_states[uav].phi
+            controls.U[uav, 3] = noisy_states[uav].psi
+            print(controls.U)
         return controls
