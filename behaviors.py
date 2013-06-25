@@ -1,3 +1,4 @@
+from datastructure import EnlargeableArray
 from qrsim.tcpclient import UAVControls
 import numpy as np
 from numpy.linalg import norm
@@ -11,7 +12,7 @@ class RandomMovement(object):
         self.maxv = maxv
         self.height = height
 
-    def get_controls(self, noisy_states):
+    def get_controls(self, noisy_states, plume_measurement):
         controls = UAVControls(len(noisy_states), 'vel')
         for uav in xrange(len(noisy_states)):
             # random velocity direction scaled by the max allowed velocity
@@ -31,39 +32,50 @@ class RandomMovement(object):
 
 
 class ToMaxVariance(object):
-    def __init__(self, height, recorder):
+    def __init__(self, height, area, expected_steps=1000):
         self.height = height
-        self.recorder = recorder
+        self.area = area
+        self.expected_steps = expected_steps
+        self.step = 0
 
-    def get_controls(self, noisy_states):
-        if len(self.recorder.plume_measurements[0]) < 2:
+    def get_controls(self, noisy_states, plume_measurement):
+        if self.step == 0:
+            self.positions = EnlargeableArray(
+                (len(noisy_states), 3), self.expected_steps)
+            self.plume_measurements = EnlargeableArray(
+                (len(noisy_states),), self.expected_steps)
+            # FIXME Do first step in controller?
             b = RandomMovement(3, self.height)
-            return b.get_controls(noisy_states)
+            return b.get_controls(noisy_states, plume_measurement)
+
+        self.positions.append([s.position for s in noisy_states])
+        self.plume_measurements.append(plume_measurement)
+
+        gp = gaussian_process.GaussianProcess(nugget=0.5)
+        gp.fit(
+            self.positions.data.reshape((-1, 3)),
+            self.plume_measurements.flat)
+
+        x, y = np.meshgrid(np.arange(*self.area[0]), np.arange(*self.area[1]))
+        z = np.empty_like(x)
+        z.fill(self.height)
+        unused, mse = gp.predict(
+            np.dstack((x, y, z)).reshape((-1, 3)), eval_MSE=True)
+        mse = mse.reshape(x.shape)
+        wp_idx = np.unravel_index(np.argmax(mse), x.shape)
 
         controls = UAVControls(len(noisy_states), 'wp')
         for uav in xrange(len(noisy_states)):
-            if noisy_states[uav].z > -8:
-                controls.U[uav, :2] = noisy_states[uav].position[:2]
-                controls.U[uav, 2] = -self.height
-                controls.U[uav, 3] = noisy_states[uav].psi
-                break
+            #if noisy_states[uav].z > -8:
+                #controls.U[uav, :2] = noisy_states[uav].position[:2]
+                #controls.U[uav, 2] = -self.height
+                #controls.U[uav, 3] = noisy_states[uav].psi
+                #break
 
-            gp = gaussian_process.GaussianProcess(nugget=0.5)
-            gp.fit(
-                self.recorder.positions[uav, :, :2],
-                self.recorder.plume_measurements[uav])
-            ep = np.linspace(-40, 40)
-            x, y = np.meshgrid(ep, ep)
-            xy = np.hstack((
-                np.atleast_2d(x.flat).T,
-                np.atleast_2d(y.flat).T))  # ,
-                #np.repeat([[10]], np.prod(x.shape), 0)))
-            unused, mse = gp.predict(xy, eval_MSE=True)
-            wp_idx = np.unravel_index(np.argmax(mse), (ep.size, ep.size))
-
-            controls.U[uav, 0] = ep[wp_idx[0]]
-            controls.U[uav, 1] = ep[wp_idx[1]]
+            controls.U[uav, 0] = x[wp_idx]
+            controls.U[uav, 1] = y[wp_idx]
             controls.U[uav, 2] = -self.height
+            # FIXME what is the right angle here?
             controls.U[uav, 3] = noisy_states[uav].psi
             print(controls.U)
         return controls

@@ -32,7 +32,7 @@ class Controller(object):
     def run(self, num_steps):
         for step in xrange(num_steps):
             controls = self.movement_behavior.get_controls(
-                self.client.noisy_state)
+                self.client.noisy_state, client.get_plume_sensor_outputs())
             self.client.step(self.client.timestep, controls)
             for recorder in self.recorders:
                 recorder.record()
@@ -61,7 +61,8 @@ if __name__ == '__main__':
             #movement_behavior = conf['behavior']
             recorder = TaskPlumeRecorder(
                 fileh, client, gp, conf['duration_in_steps'])
-            movement_behavior = ToMaxVariance(10, recorder)
+            movement_behavior = ToMaxVariance(
+                10, conf['area'], conf['duration_in_steps'])
 
             controller = Controller(client, movement_behavior)
             controller.add_recorder(recorder)
@@ -70,6 +71,7 @@ if __name__ == '__main__':
                 conf['duration_in_steps'])
             controller.run(conf['duration_in_steps'])
 
+            # DRY! (see behavior)
             gp = gaussian_process.GaussianProcess(nugget=0.5)
             gp.fit(
                 recorder.positions[0, :, :], recorder.plume_measurements[0])
