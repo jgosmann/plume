@@ -2,6 +2,7 @@
 
 from behaviors import ToMaxVariance
 from plume import TaskPlumeClient
+from qrsim.tcpclient import UAVControls
 from recorder import ControlsRecorder, TaskPlumeRecorder
 import argparse
 import matplotlib.pyplot as plt
@@ -23,6 +24,8 @@ class Controller(object):
 
     def init(self, taskfile, duration_in_steps):
         self.client.init(taskfile, False)
+        # Ensure that all simulator variables have been set
+        self.step_keeping_position()
         for recorder in self.recorders:
             recorder.init()
 
@@ -33,9 +36,18 @@ class Controller(object):
         for step in xrange(num_steps):
             controls = self.movement_behavior.get_controls(
                 self.client.noisy_state, client.get_plume_sensor_outputs())
+            print(
+                self.client.noisy_state[0].position, self.client.state[0].z,
+                controls.U)
             self.client.step(self.client.timestep, controls)
             for recorder in self.recorders:
                 recorder.record()
+
+    def step_keeping_position(self):
+        c = UAVControls(self.client.numUAVs, 'wp')
+        c.U[:, :3] = [s.position for s in self.client.state]
+        c.U[:, 3] = [s.psi for s in self.client.state]
+        self.client.step(self.client.timestep, c)
 
 
 if __name__ == '__main__':
@@ -62,7 +74,7 @@ if __name__ == '__main__':
             recorder = TaskPlumeRecorder(
                 fileh, client, gp, conf['duration_in_steps'])
             movement_behavior = ToMaxVariance(
-                10, conf['area'], conf['duration_in_steps'])
+                -40, conf['area'], conf['duration_in_steps'])
 
             controller = Controller(client, movement_behavior)
             controller.add_recorder(recorder)
@@ -79,7 +91,7 @@ if __name__ == '__main__':
             x, y = np.meshgrid(
                 np.arange(*conf['area'][0]), np.arange(*conf['area'][1]))
             z = np.empty_like(x)
-            z.fill(-10)
+            z.fill(-40)
             pred, mse = gp.predict(
                 np.dstack((x, y, z)).reshape((-1, 3)), eval_MSE=True)
             pred = pred.reshape(x.shape)
