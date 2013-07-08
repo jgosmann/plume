@@ -6,10 +6,13 @@ from plume import TaskPlumeClient
 from qrsim.tcpclient import UAVControls
 from recorder import ControlsRecorder, TaskPlumeRecorder
 import argparse
+import logging
 import os.path
 import tables
 
 from sklearn import gaussian_process
+
+logger = logging.getLogger(__name__)
 
 
 class Controller(object):
@@ -33,11 +36,9 @@ class Controller(object):
 
     def run(self, num_steps):
         for step in xrange(num_steps):
+            logger.info('Step %i', step)
             controls = self.movement_behavior.get_controls(
                 self.client.noisy_state, client.get_plume_sensor_outputs())
-            print(
-                self.client.noisy_state[0].position, self.client.state[0].z,
-                controls.U)
             self.client.step(self.client.timestep, controls)
             for recorder in self.recorders:
                 recorder.record()
@@ -57,6 +58,9 @@ if __name__ == '__main__':
     parser.add_argument('port', nargs='?', type=int, default=[10000])
     args = parser.parse_args()
 
+    logging.basicConfig()
+    logger.setLevel(logging.INFO)
+
     conf = load_config(args.conf[0])
 
     gp = gaussian_process.GaussianProcess(nugget=0.5)
@@ -64,6 +68,8 @@ if __name__ == '__main__':
     output_filename = os.path.join(args.output[0], 'plume.h5')
 
     with tables.open_file(output_filename, 'w') as fileh:
+        fileh.root.attrs = conf
+
         with TaskPlumeClient() as client:
             client = ControlsRecorder(fileh, client, conf['duration_in_steps'])
             client.connect_to(args.ip[0], args.port[0])
