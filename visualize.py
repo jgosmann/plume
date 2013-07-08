@@ -15,10 +15,12 @@ from mayavi.tools.camera import deg2rad, rad2deg
 
 from mayavi.modules.api import Outline
 
-from traits.api import Bool, Float, HasTraits, Instance, on_trait_change
-from traitsui.api import Item, View, VSplit
+from traits.api import Bool, Float, HasTraits, Instance, Range, on_trait_change
+from traitsui.api import Item, View, HSplit, VSplit
+from PyQt4.QtCore import QObject, QTimer, SIGNAL
 
 from tvtk.api import tvtk
+from tvtk.util.ctf import PiecewiseFunction
 import vtk
 
 from prediction import predict_on_volume
@@ -128,6 +130,38 @@ def current_figure_as_default(fn):
     return with_cf_as_def
 
 
+class PreviewEnabledRenderingFunction(object):
+    def __init__(self, scene, timeout=250):
+        self.scene = scene
+        self._fine_rendering_allocated_time = None
+        self._timer = QTimer()
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(timeout)
+        QObject.connect(self._timer, SIGNAL('timeout()'), self.render)
+
+    def abort_rendering(self):
+        self._timer.stop()
+        if self._fine_rendering_allocated_time is not None:
+            self.scene.renderer.allocated_render_time = \
+                self._fine_rendering_allocated_time
+            self._fine_rendering_allocated_time = None
+
+    def render(self):
+        self.scene.renderer.allocated_render_time = \
+            self._fine_rendering_allocated_time
+        self.scene.render()
+
+    def render_preview(self):
+        self._fine_rendering_allocated_time = \
+            self.scene.renderer.allocated_render_time
+        self.scene.renderer.allocated_render_time = 0
+        self.scene.render()
+        self._timer.start()
+
+    def __call__(self):
+        self.render_preview()
+
+
 class PlumeVisualizer(HasTraits):
     trajectory_color = (0, 126 / 255, 203 / 255)
     marker_color = (0, 172 / 255, 1)
@@ -135,18 +169,32 @@ class PlumeVisualizer(HasTraits):
     prediction = Instance(MlabSceneModel, ())
     mse = Instance(MlabSceneModel, ())
 
-    view = View(VSplit(
-        Item(
-            'prediction', show_label=False,
-            editor=SceneEditor(scene_class=ThinToolbarEditor)),
-        Item(
-            'mse', show_label=False,
-            editor=SceneEditor(scene_class=ThinToolbarEditor))),
-        resizable=True, height=1.0, width=1.0)
+    prediction_cutoff = Range(0.0, 1.0, 0.7)
+    mse_cutoff = Range(0.0, 1.0, 0.5)
+
+    view = View(
+        HSplit(
+            VSplit(
+                Item('prediction_cutoff'),
+                Item('mse_cutoff'),
+            ),
+            VSplit(
+                Item(
+                    'prediction', show_label=False,
+                    editor=SceneEditor(scene_class=ThinToolbarEditor)),
+                Item(
+                    'mse', show_label=False,
+                    editor=SceneEditor(scene_class=ThinToolbarEditor))
+            )
+        ), resizable=True, height=1.0, width=1.0)
 
     def __init__(self, data):
         HasTraits.__init__(self)
         self.conf = data.get_node_attr('/', 'conf')
+        self.render_prediction_with_preview = PreviewEnabledRenderingFunction(
+            self.prediction.scene)
+        self.render_mse_with_preview = PreviewEnabledRenderingFunction(
+            self.mse.scene)
 
         self._init_scene(self.prediction)
         self._init_scene(self.mse)
@@ -157,8 +205,12 @@ class PlumeVisualizer(HasTraits):
         self.plot_uav_trajectories(trajectories, figure=self.mse.mayavi_scene)
 
         pred, mse, positions = self.calc_estimation(data)
-        self.plot_volume(positions, pred, self.prediction.mayavi_scene)
-        self.plot_volume(positions, mse, self.mse.mayavi_scene)
+        self._prediction_volume = self.plot_volume(
+            positions, pred, self.prediction.mayavi_scene)
+        self._mse_volume = self.plot_volume(
+            positions, mse, self.mse.mayavi_scene)
+        self._set_cutoff(self._prediction_volume, self.prediction_cutoff)
+        self._set_cutoff(self._mse_volume, self.mse_cutoff)
 
         area = self.conf['global_conf']['area']
         self.prediction.mayavi_scene.children[0].add_child(
@@ -215,9 +267,31 @@ class PlumeVisualizer(HasTraits):
     @staticmethod
     @current_figure_as_default
     def plot_volume((x, y, z), values, figure, vmin=None, vmax=None):
-        mlab.pipeline.volume(
+        return mlab.pipeline.volume(
             mlab.pipeline.scalar_field(x, y, z, values, figure=figure),
             vmin=vmin, vmax=vmax, figure=figure)
+
+    @staticmethod
+    def _set_cutoff(volume, cutoff):
+        range_min, range_max = volume.current_range
+        vmin = range_min + cutoff * (range_max - range_min)
+
+        otf = PiecewiseFunction()
+        otf.add_point(range_min, 0.0)
+        otf.add_point(vmin, 0.0)
+        otf.add_point(range_max, 0.2)
+        volume._otf = otf
+        volume.volume_property.set_scalar_opacity(otf)
+
+    def _prediction_cutoff_changed(self):
+        self.render_prediction_with_preview.abort_rendering()
+        self._set_cutoff(self._prediction_volume, self.prediction_cutoff)
+        self.render_prediction_with_preview()
+
+    def _mse_cutoff_changed(self):
+        self.render_mse_with_preview.abort_rendering()
+        self._set_cutoff(self._mse_volume, self.mse_cutoff)
+        self.render_mse_with_preview()
 
 
 if __name__ == '__main__':
