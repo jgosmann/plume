@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 from behaviors import ToMaxVariance
+from configloader import load_config
 from plume import TaskPlumeClient
 from qrsim.tcpclient import UAVControls
 from recorder import ControlsRecorder, TaskPlumeRecorder
 import argparse
-import numpy as np
 import os.path
 import tables
 
@@ -57,9 +57,7 @@ if __name__ == '__main__':
     parser.add_argument('port', nargs='?', type=int, default=[10000])
     args = parser.parse_args()
 
-    conf = {}
-    execfile(args.conf[0], conf)
-    conf['area'] = np.asarray(conf['area'])
+    conf = load_config(args.conf[0])
 
     gp = gaussian_process.GaussianProcess(nugget=0.5)
 
