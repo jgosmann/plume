@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from behaviors import ToMaxVariance
 from configloader import load_config
 from plume import TaskPlumeClient
 from qrsim.tcpclient import UAVControls
@@ -69,19 +68,15 @@ if __name__ == '__main__':
 
     with tables.open_file(output_filename, 'w') as fileh:
         fileh.root.attrs = conf
+        num_steps = conf['global_conf']['duration_in_steps']
 
         with TaskPlumeClient() as client:
-            client = ControlsRecorder(fileh, client, conf['duration_in_steps'])
+            client = ControlsRecorder(fileh, client, num_steps)
             client.connect_to(args.ip[0], args.port[0])
-            #movement_behavior = conf['behavior']
-            recorder = TaskPlumeRecorder(
-                fileh, client, gp, conf['duration_in_steps'])
-            movement_behavior = ToMaxVariance(
-                -40, conf['area'], conf['duration_in_steps'])
+            recorder = TaskPlumeRecorder(fileh, client, gp, num_steps)
 
-            controller = Controller(client, movement_behavior)
+            controller = Controller(client, conf['behavior'])
             controller.add_recorder(recorder)
             controller.init(
-                'TaskPlumeSingleSourceGaussianDefaultControls',
-                conf['duration_in_steps'])
-            controller.run(conf['duration_in_steps'])
+                'TaskPlumeSingleSourceGaussianDefaultControls', num_steps)
+            controller.run(num_steps)

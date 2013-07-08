@@ -69,11 +69,12 @@ class RandomMovement(object):
 
 
 class ToMaxVariance(object):
-    def __init__(self, height, area, expected_steps=1000):
-        self.height = height
+    def __init__(self, margin, area, duration_in_steps=1000):
+        self.margin = margin
         self.area = area
-        self.expected_steps = expected_steps
+        self.expected_steps = duration_in_steps
         self.step = 0
+        self._controller = VelocityTowardsWaypointController(3, 3)
 
     def get_controls(self, noisy_states, plume_measurement):
         if self.step == 0:
@@ -87,7 +88,7 @@ class ToMaxVariance(object):
         self.step += 1
 
         if self.positions.data.size // 3 < 2:
-            b = RandomMovement(3, self.height)
+            b = RandomMovement(3, np.mean(self.get_effective_area()[2]))
             return b.get_controls(noisy_states, plume_measurement)
 
         gp = gaussian_process.GaussianProcess(nugget=0.5)
@@ -95,15 +96,17 @@ class ToMaxVariance(object):
             self.positions.data.reshape((-1, 3)),
             self.plume_measurements.data.flatten())
 
-        x, y = np.meshgrid(np.arange(*self.area[0]), np.arange(*self.area[1]))
-        z = np.empty_like(x)
-        z.fill(self.height)
+        # FIXME configurable grid resolution
+        x, y, z = np.meshgrid(
+            *[np.linspace(*dim, num=15) for dim in self.get_effective_area()])
         unused, mse = gp.predict(
-            np.dstack((x, y, z)).reshape((-1, 3)), eval_MSE=True)
+            np.column_stack((x.flat, y.flat, z.flat)), eval_MSE=True)
         mse = mse.reshape(x.shape)
         wp_idx = np.unravel_index(np.argmax(mse), x.shape)
 
         targets = np.array(
-            len(noisy_states) * [[x[wp_idx], y[wp_idx], self.height]])
-        controller = VelocityTowardsWaypointController(3, 3)
-        return controller.get_controls(noisy_states, targets)
+            len(noisy_states) * [[x[wp_idx], y[wp_idx], z[wp_idx]]])
+        return self._controller.get_controls(noisy_states, targets)
+
+    def get_effective_area(self):
+        return self.area + np.array([self.margin, -self.margin])
