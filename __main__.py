@@ -9,8 +9,6 @@ import logging
 import os.path
 import tables
 
-from sklearn import gaussian_process
-
 logger = logging.getLogger(__name__)
 
 
@@ -61,8 +59,7 @@ if __name__ == '__main__':
     logger.setLevel(logging.INFO)
 
     conf = load_config(args.conf[0])
-
-    gp = gaussian_process.GaussianProcess(nugget=0.5)
+    predictor = conf['predictor']
 
     output_filename = os.path.join(args.output[0], 'plume.h5')
 
@@ -73,7 +70,7 @@ if __name__ == '__main__':
         with TaskPlumeClient() as client:
             client = ControlsRecorder(fileh, client, num_steps)
             client.connect_to(args.ip[0], args.port[0])
-            recorder = TaskPlumeRecorder(fileh, client, gp, num_steps)
+            recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
 
             controller = Controller(client, conf['behavior'])
             controller.add_recorder(recorder)

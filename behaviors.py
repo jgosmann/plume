@@ -1,10 +1,9 @@
 from datastructure import EnlargeableArray
+from prediction import predict_on_volume
 from qrsim.tcpclient import UAVControls
 import numpy as np
 from numpy.linalg import norm
 import numpy.random as rnd
-
-from sklearn import gaussian_process
 
 
 class VelocityTowardsWaypointController(object):
@@ -69,8 +68,12 @@ class RandomMovement(object):
 
 
 class ToMaxVariance(object):
-    def __init__(self, margin, area, duration_in_steps=1000):
+    def __init__(
+            self, margin, predictor, grid_resolution, area,
+            duration_in_steps=1000):
         self.margin = margin
+        self.predictor = predictor
+        self.grid_resolution = grid_resolution
         self.area = area
         self.expected_steps = duration_in_steps
         self.step = 0
@@ -91,17 +94,11 @@ class ToMaxVariance(object):
             b = RandomMovement(3, np.mean(self.get_effective_area()[2]))
             return b.get_controls(noisy_states, plume_measurement)
 
-        gp = gaussian_process.GaussianProcess(nugget=0.5)
-        gp.fit(
+        self.predictor.fit(
             self.positions.data.reshape((-1, 3)),
             self.plume_measurements.data.flatten())
-
-        # FIXME configurable grid resolution
-        x, y, z = np.meshgrid(
-            *[np.linspace(*dim, num=15) for dim in self.get_effective_area()])
-        unused, mse = gp.predict(
-            np.column_stack((x.flat, y.flat, z.flat)), eval_MSE=True)
-        mse = mse.reshape(x.shape)
+        unused, mse, (x, y, z) = predict_on_volume(
+            self.predictor, self.get_effective_area(), self.grid_resolution)
         wp_idx = np.unravel_index(np.argmax(mse), x.shape)
 
         targets = np.array(
