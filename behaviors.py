@@ -5,6 +5,8 @@ import numpy as np
 from numpy.linalg import norm
 import numpy.random as rnd
 
+import sklearn.base
+
 
 class VelocityTowardsWaypointController(object):
     def __init__(self, maxv, max_climb):
@@ -94,11 +96,12 @@ class ToMaxVariance(object):
             b = RandomMovement(3, np.mean(self.get_effective_area()[2]))
             return b.get_controls(noisy_states, plume_measurement)
 
-        self.predictor.fit(
+        predictor = sklearn.base.clone(self.predictor)
+        predictor.fit(
             self.positions.data.reshape((-1, 3)),
             self.plume_measurements.data.flatten())
         unused, mse, (x, y, z) = predict_on_volume(
-            self.predictor, self.get_effective_area(), self.grid_resolution)
+            predictor, self.get_effective_area(), self.grid_resolution)
         wp_idx = np.unravel_index(np.argmax(mse), x.shape)
 
         targets = np.array(
