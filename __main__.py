@@ -5,7 +5,6 @@ from plume import TaskPlumeClient
 from qrsim.tcpclient import UAVControls
 from recorder import ControlsRecorder, TaskPlumeRecorder
 import argparse
-import matplotlib.pyplot as plt
 import numpy as np
 import os.path
 import tables
@@ -82,33 +81,3 @@ if __name__ == '__main__':
                 'TaskPlumeSingleSourceGaussianDefaultControls',
                 conf['duration_in_steps'])
             controller.run(conf['duration_in_steps'])
-
-            # DRY! (see behavior)
-            gp = gaussian_process.GaussianProcess(nugget=0.5)
-            gp.fit(
-                recorder.positions[0, :, :], recorder.plume_measurements[0])
-
-            x, y = np.meshgrid(
-                np.arange(*conf['area'][0]), np.arange(*conf['area'][1]))
-            z = np.empty_like(x)
-            z.fill(-40)
-            pred, mse = gp.predict(
-                np.dstack((x, y, z)).reshape((-1, 3)), eval_MSE=True)
-            pred = pred.reshape(x.shape)
-            mse = mse.reshape(x.shape)
-            plt.imshow(
-                pred, extent=conf['area'][:2, :].flatten(), origin='lower')
-            plt.colorbar()
-            plt.plot(
-                recorder.positions[0, :, 0], recorder.positions[0, :, 1], '-')
-            plt.title('pred')
-
-            plt.figure()
-            plt.imshow(
-                mse, extent=conf['area'][:2, :].flatten(), origin='lower')
-            plt.colorbar()
-            plt.title('mse')
-
-            plt.figure()
-            plt.plot(recorder.rewards[2:])
-            plt.show()
