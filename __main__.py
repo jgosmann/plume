@@ -67,7 +67,7 @@ if __name__ == '__main__':
     output_filename = os.path.join(args.output[0], 'plume.h5')
 
     with tables.open_file(output_filename, 'w') as fileh:
-        fileh.root.attrs = conf
+        fileh.set_node_attr('/', 'conf', conf)
         num_steps = conf['global_conf']['duration_in_steps']
 
         with TaskPlumeClient() as client:
