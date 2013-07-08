@@ -21,7 +21,8 @@ from traitsui.api import Item, View, VSplit
 from tvtk.api import tvtk
 import vtk
 
-from sklearn import gaussian_process
+from prediction import predict_on_volume
+import sklearn.base
 
 
 class RotateAroundZInteractor(tvtk.InteractorStyleTrackballCamera):
@@ -145,6 +146,7 @@ class PlumeVisualizer(HasTraits):
 
     def __init__(self, data):
         HasTraits.__init__(self)
+        self.conf = data.get_node_attr('/', 'conf')
 
         self._init_scene(self.prediction)
         self._init_scene(self.mse)
@@ -158,10 +160,11 @@ class PlumeVisualizer(HasTraits):
         self.plot_volume(positions, pred, self.prediction.mayavi_scene)
         self.plot_volume(positions, mse, self.mse.mayavi_scene)
 
+        area = self.conf['global_conf']['area']
         self.prediction.mayavi_scene.children[0].add_child(
-            Outline(manual_bounds=True, bounds=[-140, 140, -140, 140, -80, 0]))
+            Outline(manual_bounds=True, bounds=area.flatten()))
         self.mse.mayavi_scene.children[0].add_child(
-            Outline(manual_bounds=True, bounds=[-140, 140, -140, 140, -80, 0]))
+            Outline(manual_bounds=True, bounds=area.flatten()))
 
     @staticmethod
     def _init_scene(scene):
@@ -170,6 +173,11 @@ class PlumeVisualizer(HasTraits):
 
     @on_trait_change('prediction.activated, mse.activated')
     def init_camera(self):
+        all_activated = not self.prediction.scene.interactor is None and \
+            not self.mse.scene.interactor is None
+        if not all_activated:
+            return
+
         self.prediction.scene.interactor.interactor_style = \
             RotateAroundZInteractor()
         self.mse.scene.interactor.interactor_style = RotateAroundZInteractor()
@@ -196,21 +204,13 @@ class PlumeVisualizer(HasTraits):
         for uav_positions in trajectories:
             cls.plot_uav_trajectory(uav_positions, figure)
 
-    @staticmethod
-    def calc_estimation(data):
-        # FIXME ensure same predictor as in simulation
-        gp = gaussian_process.GaussianProcess(nugget=0.5)
-        gp.fit(
+    def calc_estimation(self, data):
+        area = self.conf['global_conf']['area']
+        predictor = sklearn.base.clone(self.conf['predictor'])
+        predictor.fit(
             data.root.positions.read()[0, :, :],
             data.root.plume_measurements.read()[0])
-
-        # FIXME read from config
-        x, y, z = np.mgrid[-140:141:5, -140:141:5, -80:1:5]
-        pred, mse = gp.predict(
-            np.column_stack((x.flat, y.flat, z.flat)), eval_MSE=True)
-        pred = pred.reshape(x.shape)
-        mse = mse.reshape(x.shape)
-        return pred, mse, (x, y, z)
+        return predict_on_volume(predictor, area, [30, 30, 20])
 
     @staticmethod
     @current_figure_as_default
