@@ -16,11 +16,11 @@ from mayavi.tools.camera import deg2rad, rad2deg
 from mayavi.modules.api import Outline
 
 from traits.api import Bool, Float, HasTraits, Instance, Range, on_trait_change
-from traitsui.api import Item, View, HSplit, VSplit
+from traitsui.api import Item, View, HSplit, VGroup, VSplit
 from PyQt4.QtCore import QObject, QTimer, SIGNAL
 
 from tvtk.api import tvtk
-from tvtk.util.ctf import PiecewiseFunction
+from tvtk.util.ctf import ColorTransferFunction, PiecewiseFunction, set_lut
 import vtk
 
 from prediction import predict_on_volume
@@ -174,9 +174,9 @@ class PlumeVisualizer(HasTraits):
 
     view = View(
         HSplit(
-            VSplit(
-                Item('prediction_cutoff'),
-                Item('mse_cutoff'),
+            VGroup(
+                Item('prediction_cutoff', width=200),
+                Item('mse_cutoff', width=200)
             ),
             VSplit(
                 Item(
@@ -204,19 +204,14 @@ class PlumeVisualizer(HasTraits):
             trajectories, figure=self.prediction.mayavi_scene)
         self.plot_uav_trajectories(trajectories, figure=self.mse.mayavi_scene)
 
-        pred, mse, positions = self.calc_estimation(data)
-        self._prediction_volume = self.plot_volume(
-            positions, pred, self.prediction.mayavi_scene)
-        self._mse_volume = self.plot_volume(
-            positions, mse, self.mse.mayavi_scene)
-        self._set_cutoff(self._prediction_volume, self.prediction_cutoff)
-        self._set_cutoff(self._mse_volume, self.mse_cutoff)
-
         area = self.conf['global_conf']['area']
         self.prediction.mayavi_scene.children[0].add_child(
             Outline(manual_bounds=True, bounds=area.flatten()))
         self.mse.mayavi_scene.children[0].add_child(
             Outline(manual_bounds=True, bounds=area.flatten()))
+
+        mlab.title('Prediction', figure=self.prediction.mayavi_scene)
+        mlab.title('MSE', figure=self.mse.mayavi_scene)
 
     @staticmethod
     def _init_scene(scene):
@@ -233,6 +228,14 @@ class PlumeVisualizer(HasTraits):
         self.prediction.scene.interactor.interactor_style = \
             RotateAroundZInteractor()
         self.mse.scene.interactor.interactor_style = RotateAroundZInteractor()
+
+        pred, mse, positions = self.calc_estimation(data)
+        self._prediction_volume = self.plot_volume(
+            positions, pred, self.prediction.mayavi_scene)
+        self._mse_volume = self.plot_volume(
+            positions, mse, self.mse.mayavi_scene)
+        self._set_cutoff(self._prediction_volume, self.prediction_cutoff)
+        self._set_cutoff(self._mse_volume, self.mse_cutoff)
 
         mlab.sync_camera(self.prediction.mayavi_scene, self.mse.mayavi_scene)
         mlab.sync_camera(self.mse.mayavi_scene, self.prediction.mayavi_scene)
@@ -267,9 +270,12 @@ class PlumeVisualizer(HasTraits):
     @staticmethod
     @current_figure_as_default
     def plot_volume((x, y, z), values, figure, vmin=None, vmax=None):
-        return mlab.pipeline.volume(
-            mlab.pipeline.scalar_field(x, y, z, values, figure=figure),
+        volume = mlab.pipeline.volume(
+            mlab.pipeline.scalar_field(
+                x, y, z, values, figure=figure, colormap='Reds'),
             vmin=vmin, vmax=vmax, figure=figure)
+        volume.lut_manager.show_scalar_bar = True
+        return volume
 
     @staticmethod
     def _set_cutoff(volume, cutoff):
@@ -283,6 +289,16 @@ class PlumeVisualizer(HasTraits):
         volume._otf = otf
         volume.volume_property.set_scalar_opacity(otf)
 
+        ctf = ColorTransferFunction()
+        ctf.range = volume.current_range
+        ctf.add_rgb_point(range_min, 1.0, 1.0, 1.0)
+        ctf.add_rgb_point((range_min + range_max) * (1.0 / 3.0), 0.0, 0.0, 1.0)
+        ctf.add_rgb_point((range_min + range_max) * (2.0 / 3.0), 1.0, 0.0, 1.0)
+        ctf.add_rgb_point(range_max, 1.0, 0.0, 0.0)
+        volume._ctf = ctf
+        volume.volume_property.set_color(ctf)
+        set_lut(volume.lut_manager.lut, volume.volume_property)
+
     def _prediction_cutoff_changed(self):
         self.render_prediction_with_preview.abort_rendering()
         self._set_cutoff(self._prediction_volume, self.prediction_cutoff)
@@ -295,6 +311,7 @@ class PlumeVisualizer(HasTraits):
 
 
 if __name__ == '__main__':
+    # FIXME ensure Qt interface is used
     parser = argparse.ArgumentParser()
     parser.add_argument('filename', nargs=1, type=str)
     args = parser.parse_args()

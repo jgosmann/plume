@@ -8,6 +8,7 @@ def predict_on_volume(predictor, area, grid_resolution):
 
     pred, mse = predictor.predict(
         np.column_stack((x.flat, y.flat, z.flat)), eval_MSE=True)
+    np.maximum(0, pred, out=pred)
 
     assert x.shape == y.shape and y.shape == z.shape
     pred = pred.reshape(x.shape)
