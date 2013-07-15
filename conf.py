@@ -7,5 +7,6 @@ global_conf = {
 }
 
 predictor = gaussian_process.GaussianProcess(nugget=0.5)
-behavior = behaviors.ToMaxVariance(
-    margin=10, predictor=predictor, grid_resolution=[15, 15, 9], **global_conf)
+behavior = behaviors.DUCB(
+    margin=10, predictor=predictor, grid_resolution=[15, 15, 9], kappa=8,
+    gamma=7, **global_conf)
