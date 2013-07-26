@@ -6,7 +6,6 @@ from numpy.linalg import norm
 import numpy.random as rnd
 
 
-
 class VelocityTowardsWaypointController(object):
     def __init__(self, maxv, max_climb):
         self.maxv = maxv
@@ -157,7 +156,8 @@ class DUCB(object):
             dist = np.apply_along_axis(
                 norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
                 self.positions.data[-1]).reshape(x.shape)
-            ducb = 0.15e-12 * np.log(pred + 1e-30) + self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
+            ducb = 0.15e-12 * np.log(pred + 1e-30) + \
+                self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
 
             wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
 
