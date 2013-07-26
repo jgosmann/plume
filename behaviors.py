@@ -125,7 +125,7 @@ class DUCB(object):
         self.expected_steps = duration_in_steps
         self.step = 0
         self._controller = VelocityTowardsWaypointController(3, 3)
-        self._target = None
+        self.targets = None
 
     def get_controls(self, noisy_states, plume_measurement):
         if self.step == 0:
@@ -140,10 +140,10 @@ class DUCB(object):
 
         if self.positions.data.size // 3 < 2:
             b = RandomMovement(3, np.mean(self.get_effective_area()[2]))
-            self._target = np.array([s.position for s in noisy_states])
+            self.targets = np.array([s.position for s in noisy_states])
             return b.get_controls(noisy_states, plume_measurement)
 
-        if norm(self._target - noisy_states[0].position) < \
+        if norm(self.targets - noisy_states[0].position) < \
                 self.target_precision:
             # FIXME remove or do only for scikit learn
             #predictor = sklearn.base.clone(self.predictor)
@@ -161,10 +161,10 @@ class DUCB(object):
 
             wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
 
-            self._target = np.array(
+            self.targets = np.array(
                 len(noisy_states) * [[x[wp_idx], y[wp_idx], z[wp_idx]]])
 
-        return self._controller.get_controls(noisy_states, self._target)
+        return self._controller.get_controls(noisy_states, self.targets)
 
     def get_effective_area(self):
         return self.area + np.array([self.margin, -self.margin])

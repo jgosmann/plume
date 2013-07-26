@@ -3,7 +3,7 @@
 from configloader import load_config
 from plume import TaskPlumeClient
 from qrsim.tcpclient import UAVControls
-from recorder import ControlsRecorder, TaskPlumeRecorder
+from recorder import ControlsRecorder, TargetsRecorder, TaskPlumeRecorder
 import argparse
 import logging
 import os.path
@@ -17,8 +17,11 @@ class Controller(object):
         self.client = client
         self.movement_behavior = movement_behavior
         self.recorders = []
+        self._initialized = False
 
     def add_recorder(self, recorder):
+        if self._initialized:
+            recorder.init()
         self.recorders.append(recorder)
 
     def init(self, taskfile, duration_in_steps):
@@ -27,6 +30,7 @@ class Controller(object):
         self.step_keeping_position()
         for recorder in self.recorders:
             recorder.init()
+        self._initialized = True
 
     def reset(self):
         self.client.reset()
@@ -76,4 +80,10 @@ if __name__ == '__main__':
             controller.add_recorder(recorder)
             controller.init(
                 'TaskPlumeSingleSourceGaussianDefaultControls', num_steps)
+
+            if hasattr(conf['behavior'], 'targets'):
+                targets_recorder = TargetsRecorder(
+                    fileh, conf['behavior'], client.numUAVs, num_steps)
+                controller.add_recorder(targets_recorder)
+
             controller.run(num_steps)

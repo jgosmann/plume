@@ -31,6 +31,25 @@ class GeneralRecorder(object):
     positions = property(lambda self: self._positions.read())
 
 
+class TargetsRecorder(object):
+    def __init__(self, fileh, behavior, num_uavs, expected_steps=None):
+        self.fileh = fileh
+        self.behavior = behavior
+        self.num_uavs = num_uavs
+        self.expected_steps = expected_steps
+
+    def init(self):
+        self._targets = self.fileh.create_earray(
+            self.fileh.root, 'targets', tables.FloatAtom(),
+            (self.num_uavs, 0, 3), expectedrows=self.expected_steps,
+            title='Target position for each UAV and timestep.')
+
+    def record(self):
+        self._targets.append(np.expand_dims(self.behavior.targets, 1))
+
+    targets = property(lambda self: self._targets.read())
+
+
 class TaskPlumeRecorder(GeneralRecorder):
     def __init__(self, fileh, client, predictor, expected_steps=None):
         GeneralRecorder.__init__(self, fileh, client, expected_steps)
