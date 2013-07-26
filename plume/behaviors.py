@@ -157,6 +157,44 @@ class UCBBased(object):
                 args=(noisy_states,), bounds=self.get_effective_area())
             self.targets = np.array(len(noisy_states) * [x])
 
+            pred, mse, (x, y, z) = predict_on_volume(
+                self.predictor, self.get_effective_area(),
+                self.grid_resolution)
+            ducb = self.calc_neg_ucb(np.column_stack((x.flat, y.flat, z.flat)), noisy_states)
+            dist = np.apply_along_axis(
+                norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
+                self.positions.data[-1]).reshape(x.shape)
+            #ducb = self.ca0.15e-12 * np.log(pred + 1e-30) + self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
+
+            wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.subplot(2, 2, 1)
+            plt.imshow(
+                ducb[:, :, wp_idx[2]],
+                extent=self.get_effective_area()[:2].flatten(), origin='lower')
+            plt.colorbar()
+            plt.scatter(y[wp_idx], x[wp_idx], color='g')
+            plt.scatter(res.x[0], res.x[1], color='r')
+            plt.scatter(noisy_states[0].y, noisy_states[0].x)
+            plt.subplot(2, 2, 2)
+            plt.imshow(
+                0.15e-12 * np.log(pred[:, :, wp_idx[2]] + 1e-30),
+                extent=self.get_effective_area()[:2].flatten(), origin='lower')
+            plt.colorbar()
+            plt.subplot(2, 2, 3)
+            plt.imshow(
+                self.kappa * np.sqrt(mse[:, :, wp_idx[2]]),
+                extent=self.get_effective_area()[:2].flatten(), origin='lower')
+            plt.colorbar()
+            plt.subplot(2, 2, 4)
+            plt.imshow(
+                self.gamma * dist[:, :, wp_idx[2]],
+                extent=self.get_effective_area()[:2].flatten(), origin='lower')
+            plt.colorbar()
+            plt.ioff()
+            plt.show()
+
         return self._controller.get_controls(noisy_states, self.targets)
 
     def get_effective_area(self):
