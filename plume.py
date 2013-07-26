@@ -1,13 +1,17 @@
 #!/usr/bin/env python
 
-from configloader import load_config
-from client import TaskPlumeClient
-from qrsim.tcpclient import UAVControls
-from recorder import ControlsRecorder, TargetsRecorder, TaskPlumeRecorder
 import argparse
 import logging
 import os.path
+import sys
+
+import pexpect
+from qrsim.tcpclient import UAVControls
 import tables
+
+from configloader import load_config
+from client import TaskPlumeClient
+from recorder import ControlsRecorder, TargetsRecorder, TaskPlumeRecorder
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +63,9 @@ if __name__ == '__main__':
         '-o', '--output', nargs=1, type=str, default=['plume.h5'],
         help='Output file name.')
     parser.add_argument(
-        '-H', '--host', nargs=1, type=str, default=['127.0.0.1'],
-        help='Host running QRSim.')
+        '-H', '--host', nargs=1, type=str,
+        help='Host running QRSim. If not given it will be tried to launch an '
+        'instance locally and connect to that.')
     parser.add_argument(
         '-P', '--port', nargs=1, type=int, default=[10000],
         help='Port on which QRSim instance is listening.')
@@ -82,7 +87,20 @@ if __name__ == '__main__':
 
         with TaskPlumeClient() as client:
             client = ControlsRecorder(fileh, client, num_steps)
-            client.connect_to(args.host[0], args.port[0])
+
+            if args.host is not None:
+                client.connect_to(args.host[0], args.port[0])
+            else:
+                qrsim = pexpect.spawn(
+                    'matlab -nodesktop -nosplash -r "'
+                    "cd(fileparts(which('QRSimTCPServer')));"
+                    "QRSimTCPServer(0);"
+                    'quit;"')
+                qrsim.logfile = sys.stdout
+                qrsim.expect(r'Listening on port: (\d+)')
+                port = int(qrsim.match.group(1))
+                client.connect_to('127.0.0.1', port)
+
             recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
 
             controller = Controller(client, conf['behavior'])
