@@ -12,6 +12,9 @@ class TaskPlumeClient(TCPClient):
     def get_plume_sensor_outputs(self):
         return self.rpc('PLATFORMS', 'getPlumeSensorOutput')
 
+    def get_reference_samples(self):
+        return self.rpc('TASK', 'getReferenceSamples')
+
     def set_samples(self, samples):
         self.rpc('TASK', 'setSamples', samples.flat)
 

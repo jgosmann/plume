@@ -15,6 +15,14 @@ class GeneralRecorder(object):
             (self.client.numUAVs, 0, 3), expectedrows=self.expected_steps,
             title='Noiseless positions (numUAVs x timesteps x 3) of the UAVs '
             'over time.')
+        self.fileh.create_array(
+            self.fileh.root, 'sample_locations', self.client.get_locations(),
+            title='Locations where prediction was requested '
+            '(num locations x 3)')
+        self.fileh.create_array(
+            self.fileh.root, 'ground_truth',
+            np.asarray(self.client.get_reference_samples()),
+            title='True plume values (num locations)')
 
     def record(self):
         self._positions.append(
