@@ -1,4 +1,34 @@
+import GPy as gpy
 import numpy as np
+
+
+class GPyAdapter(object):
+    def __init__(self, kernel):
+        self.kernel = kernel
+
+    def fit(self, X, y):
+        X = np.asarray(X)
+        y = np.asarray(y)
+
+        if y.ndim == 1:
+            y = np.atleast_2d(y).T
+
+        self.model = gpy.models.GPRegression(X, y, self.kernel)
+        self.model['rbf_lengthscale'] = 30
+        self.model['noise_variance'] = 0.1
+        #self.model.constrain_bounded('.*rbf_variance', 0.1, 100)
+        #self.model.constrain_bounded('.*rbf_lengthscale', 0.1, 140)
+        #self.model.constrain_bounded('.*noise_variance', 0.01, 10)
+        #self.model.optimize()
+        #print(self.model)
+
+    def predict(self, X, eval_MSE=False):
+        pred, mse, lcb, ucb = self.model.predict(X)
+        #print np.min(mse)
+        if eval_MSE:
+            return pred, mse
+        else:
+            return pred
 
 
 def predict_on_volume(predictor, area, grid_resolution):

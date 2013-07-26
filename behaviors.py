@@ -5,7 +5,6 @@ import numpy as np
 from numpy.linalg import norm
 import numpy.random as rnd
 
-import sklearn.base
 
 
 class VelocityTowardsWaypointController(object):
@@ -96,12 +95,13 @@ class ToMaxVariance(object):
             b = RandomMovement(3, np.mean(self.get_effective_area()[2]))
             return b.get_controls(noisy_states, plume_measurement)
 
-        predictor = sklearn.base.clone(self.predictor)
-        predictor.fit(
+        # FIXME remove or do only for scikit learn
+        #predictor = sklearn.base.clone(self.predictor)
+        self.predictor.fit(
             self.positions.data.reshape((-1, 3)),
             self.plume_measurements.data.flatten())
         unused, mse, (x, y, z) = predict_on_volume(
-            predictor, self.get_effective_area(), self.grid_resolution)
+            self.predictor, self.get_effective_area(), self.grid_resolution)
         wp_idx = np.unravel_index(np.argmax(mse), x.shape)
 
         targets = np.array(
@@ -141,16 +141,18 @@ class DUCB(object):
             b = RandomMovement(3, np.mean(self.get_effective_area()[2]))
             return b.get_controls(noisy_states, plume_measurement)
 
-        predictor = sklearn.base.clone(self.predictor)
-        predictor.fit(
+        # FIXME remove or do only for scikit learn
+        #predictor = sklearn.base.clone(self.predictor)
+        self.predictor.fit(
             self.positions.data.reshape((-1, 3)),
             self.plume_measurements.data.flatten())
         pred, mse, (x, y, z) = predict_on_volume(
-            predictor, self.get_effective_area(), self.grid_resolution)
+            self.predictor, self.get_effective_area(),
+            self.grid_resolution)
         dist = np.apply_along_axis(
             norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
-            self.positions.data[0]).reshape(x.shape)
-        ducb = pred + self.kappa * mse + self.gamma * dist
+            self.positions.data[-1]).reshape(x.shape)
+        ducb = 0.15e-12 * np.log(pred + 1e-30) + self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
 
         wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
 

@@ -1,6 +1,5 @@
 from qrsim.tcpclient import ctrl_signal_dimensions, UAVControls
 import numpy as np
-import sklearn.base
 import tables
 
 
@@ -49,11 +48,12 @@ class TaskPlumeRecorder(GeneralRecorder):
 
         reward = -np.inf
         if len(self._plume_measurements) > 1:
-            predictor = sklearn.base.clone(self.predictor)
-            predictor.fit(
+            # FIXME remove or do only for scikit learn
+            #predictor = sklearn.base.clone(self.predictor)
+            self.predictor.fit(
                 self.positions.reshape((len(self._plume_measurements), -1)),
                 self.plume_measurements.flat)
-            samples = predictor.predict(self._locations)
+            samples = self.predictor.predict(self._locations)
             self.client.set_samples(samples)
             reward = self.client.get_reward()
         self._rewards.append([reward])
