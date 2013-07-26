@@ -115,16 +115,18 @@ class ToMaxVariance(object):
 class DUCB(object):
     def __init__(
             self, margin, predictor, grid_resolution, area, kappa, gamma,
-            duration_in_steps=1000):
+            target_precision, duration_in_steps=1000):
         self.margin = margin
         self.predictor = predictor
         self.grid_resolution = grid_resolution
         self.area = area
         self.kappa = kappa
         self.gamma = gamma
+        self.target_precision = target_precision
         self.expected_steps = duration_in_steps
         self.step = 0
         self._controller = VelocityTowardsWaypointController(3, 3)
+        self._target = None
 
     def get_controls(self, noisy_states, plume_measurement):
         if self.step == 0:
@@ -139,26 +141,30 @@ class DUCB(object):
 
         if self.positions.data.size // 3 < 2:
             b = RandomMovement(3, np.mean(self.get_effective_area()[2]))
+            self._target = np.array([s.position for s in noisy_states])
             return b.get_controls(noisy_states, plume_measurement)
 
-        # FIXME remove or do only for scikit learn
-        #predictor = sklearn.base.clone(self.predictor)
-        self.predictor.fit(
-            self.positions.data.reshape((-1, 3)),
-            self.plume_measurements.data.flatten())
-        pred, mse, (x, y, z) = predict_on_volume(
-            self.predictor, self.get_effective_area(),
-            self.grid_resolution)
-        dist = np.apply_along_axis(
-            norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
-            self.positions.data[-1]).reshape(x.shape)
-        ducb = 0.15e-12 * np.log(pred + 1e-30) + self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
+        if norm(self._target - noisy_states[0].position) < \
+                self.target_precision:
+            # FIXME remove or do only for scikit learn
+            #predictor = sklearn.base.clone(self.predictor)
+            self.predictor.fit(
+                self.positions.data.reshape((-1, 3)),
+                self.plume_measurements.data.flatten())
+            pred, mse, (x, y, z) = predict_on_volume(
+                self.predictor, self.get_effective_area(),
+                self.grid_resolution)
+            dist = np.apply_along_axis(
+                norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
+                self.positions.data[-1]).reshape(x.shape)
+            ducb = 0.15e-12 * np.log(pred + 1e-30) + self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
 
-        wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
+            wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
 
-        targets = np.array(
-            len(noisy_states) * [[x[wp_idx], y[wp_idx], z[wp_idx]]])
-        return self._controller.get_controls(noisy_states, targets)
+            self._target = np.array(
+                len(noisy_states) * [[x[wp_idx], y[wp_idx], z[wp_idx]]])
+
+        return self._controller.get_controls(noisy_states, self._target)
 
     def get_effective_area(self):
         return self.area + np.array([self.margin, -self.margin])
