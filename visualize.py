@@ -4,6 +4,7 @@ import argparse
 import inspect
 import numpy as np
 from numpy.linalg import norm
+from scipy.interpolate import griddata
 import tables
 
 from mayavi import mlab
@@ -168,23 +169,31 @@ class PlumeVisualizer(HasTraits):
 
     prediction = Instance(MlabSceneModel, ())
     mse = Instance(MlabSceneModel, ())
+    truth = Instance(MlabSceneModel, ())
 
     prediction_cutoff = Range(0.0, 1.0, 0.7)
     mse_cutoff = Range(0.0, 1.0, 0.5)
+    time = Range(0.0, 1.0, 1.0)
 
     view = View(
         HSplit(
             VGroup(
                 Item('prediction_cutoff', width=200),
-                Item('mse_cutoff', width=200)
+                Item('mse_cutoff', width=200),
+                Item('time', width=200)
             ),
             VSplit(
                 Item(
                     'prediction', show_label=False,
                     editor=SceneEditor(scene_class=ThinToolbarEditor)),
-                Item(
-                    'mse', show_label=False,
-                    editor=SceneEditor(scene_class=ThinToolbarEditor))
+                HSplit(
+                    Item(
+                        'mse', show_label=False,
+                        editor=SceneEditor(scene_class=ThinToolbarEditor)),
+                    Item(
+                        'truth', show_label=False,
+                        editor=SceneEditor(scene_class=ThinToolbarEditor))
+                )
             )
         ), resizable=True, height=1.0, width=1.0)
 
@@ -195,28 +204,61 @@ class PlumeVisualizer(HasTraits):
             self.prediction.scene)
         self.render_mse_with_preview = PreviewEnabledRenderingFunction(
             self.mse.scene)
+        self.data = data
 
         self._init_scene(self.prediction)
         self._init_scene(self.mse)
-
-        trajectories = data.root.positions.read()
-        self.plot_uav_trajectories(
-            trajectories, figure=self.prediction.mayavi_scene)
-        self.plot_uav_trajectories(trajectories, figure=self.mse.mayavi_scene)
-
-        area = self.conf['global_conf']['area']
-        self.prediction.mayavi_scene.children[0].add_child(
-            Outline(manual_bounds=True, bounds=area.flatten()))
-        self.mse.mayavi_scene.children[0].add_child(
-            Outline(manual_bounds=True, bounds=area.flatten()))
-
-        mlab.title('Prediction', figure=self.prediction.mayavi_scene)
-        mlab.title('MSE', figure=self.mse.mayavi_scene)
+        self._init_scene(self.truth)
+        self._populate_scene(self.prediction, 'Prediction')
+        self._populate_scene(self.mse, 'MSE')
+        self._populate_scene(self.truth, 'Truth')
 
     @staticmethod
     def _init_scene(scene):
         scene.background = (1.0, 1.0, 1.0)
         scene.foreground = (0.0, 0.0, 0.0)
+
+    def _populate_scene(self, scene, title):
+        end = int(np.round(len(self.data.root.positions) * self.time))
+        trajectories = self.data.root.positions.read()[:, :end, :]
+        self.plot_uav_trajectories(trajectories, figure=scene.mayavi_scene)
+
+        area = self.conf['global_conf']['area']
+        scene.mayavi_scene.children[0].add_child(
+            Outline(manual_bounds=True, bounds=area.flatten()))
+
+        mlab.title(title, figure=scene.mayavi_scene)
+
+    def _plot_fit(self):
+        pred, mse, positions = self.calc_estimation(self.data)
+        self._prediction_volume = self.plot_volume2(
+            positions, pred, self.prediction_cutoff,
+            figure=self.prediction.mayavi_scene)
+        self._mse_volume = self.plot_volume2(
+            positions, mse, self.prediction_cutoff,
+            figure=self.mse.mayavi_scene)
+
+        area = self.conf['global_conf']['area']
+        ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
+            area, (20, 20, 20))]
+        x, y, z = (np.rollaxis(m, 1) for m in np.meshgrid(*ogrid))
+        values = griddata(
+            self.data.root.sample_locations.read(),
+            self.data.root.ground_truth.read(),
+            np.column_stack((x.flat, y.flat, z.flat))).reshape(x.shape)
+        self._truth_volume = self.plot_volume2(
+            (x, y, z), values, 0.1, figure=self.truth.mayavi_scene)
+        mlab.points3d(
+            *self.data.root.sample_locations.read().T, scale_factor=5,
+            color=(0.7, 0.0, 0.0), figure=self.truth.mayavi_scene)
+
+    # FIXME think of better name
+    @classmethod
+    @current_figure_as_default
+    def plot_volume2(cls, positions, data, cutoff, figure):
+        vol = cls.plot_volume(positions, data, figure)
+        cls._set_cutoff(vol, cutoff)
+        return vol
 
     @on_trait_change('prediction.activated, mse.activated')
     def init_camera(self):
@@ -229,13 +271,7 @@ class PlumeVisualizer(HasTraits):
             RotateAroundZInteractor()
         self.mse.scene.interactor.interactor_style = RotateAroundZInteractor()
 
-        pred, mse, positions = self.calc_estimation(data)
-        self._prediction_volume = self.plot_volume(
-            positions, pred, self.prediction.mayavi_scene)
-        self._mse_volume = self.plot_volume(
-            positions, mse, self.mse.mayavi_scene)
-        self._set_cutoff(self._prediction_volume, self.prediction_cutoff)
-        self._set_cutoff(self._mse_volume, self.mse_cutoff)
+        self._plot_fit()
 
         mlab.sync_camera(self.prediction.mayavi_scene, self.mse.mayavi_scene)
         mlab.sync_camera(self.mse.mayavi_scene, self.prediction.mayavi_scene)
@@ -261,10 +297,13 @@ class PlumeVisualizer(HasTraits):
 
     def calc_estimation(self, data):
         area = self.conf['global_conf']['area']
-        predictor = sklearn.base.clone(self.conf['predictor'])
+        end = int(np.round(len(self.data.root.positions) * self.time))
+        # FIXME remove or do only for scikit learn
+        #predictor = sklearn.base.clone(self.conf['predictor'])
+        predictor = self.conf['predictor']
         predictor.fit(
-            data.root.positions.read()[0, :, :],
-            data.root.plume_measurements.read()[0])
+            data.root.positions.read()[0, :end, :],
+            data.root.plume_measurements.read()[0, :end])
         return predict_on_volume(predictor, area, [30, 30, 20])
 
     @staticmethod
@@ -307,6 +346,21 @@ class PlumeVisualizer(HasTraits):
     def _mse_cutoff_changed(self):
         self.render_mse_with_preview.abort_rendering()
         self._set_cutoff(self._mse_volume, self.mse_cutoff)
+        self.render_mse_with_preview()
+
+    def _time_changed(self):
+        self.render_prediction_with_preview.abort_rendering()
+        self.render_mse_with_preview.abort_rendering()
+        self.prediction.scene.disable_render = True
+        self.mse.scene.disable_render = True
+        self.prediction.mayavi_scene.children = []
+        self.mse.mayavi_scene.children = []
+        self._populate_scene(self.prediction, 'Prediction')
+        self._populate_scene(self.mse, 'mse')
+        self._plot_fit()
+        #self.prediction.scene.disable_render = False
+        #self.mse.scene.disable_render = False
+        self.render_prediction_with_preview()
         self.render_mse_with_preview()
 
 
