@@ -9,9 +9,9 @@ import pexpect
 from qrsim.tcpclient import UAVControls
 import tables
 
-from configloader import load_config
-from client import TaskPlumeClient
-from recorder import ControlsRecorder, TargetsRecorder, TaskPlumeRecorder
+from .configloader import load_config
+from .client import TaskPlumeClient
+from .recorder import ControlsRecorder, TargetsRecorder, TaskPlumeRecorder
 
 logger = logging.getLogger(__name__)
 
