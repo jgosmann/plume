@@ -4,7 +4,7 @@ import numpy as np
 import prediction
 
 global_conf = {
-    'duration_in_steps': 200,
+    'duration_in_steps': 20,
     'area': [[-140, 140], [-140, 140], [-80, 0]]
 }
 
