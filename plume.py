@@ -95,7 +95,8 @@ if __name__ == '__main__':
                     'matlab -nodesktop -nosplash -r "'
                     "cd(fileparts(which('QRSimTCPServer')));"
                     "QRSimTCPServer(0);"
-                    'quit;"')
+                    'quit;"',
+                    timeout=120)
                 qrsim.logfile = sys.stdout
                 qrsim.expect(r'Listening on port: (\d+)')
                 port = int(qrsim.match.group(1))
