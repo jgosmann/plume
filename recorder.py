@@ -29,6 +29,10 @@ class GeneralRecorder(object):
             [(state.position,) for state in self.client.state])
 
     positions = property(lambda self: self._positions.read())
+    sample_locations = property(
+        lambda self: self.fileh.root.sample_locations.read())
+    reference_samples = property(
+        lambda self: self.fileh.root.ground_truth.read())
 
 
 class TargetsRecorder(object):

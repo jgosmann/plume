@@ -17,6 +17,9 @@ class TestGeneralRecorder(object):
         self.client.numUAVs = 2
         self.client.state = (UAVState(UAVState.size * [0]),
                              UAVState(UAVState.size * [1]))
+        self.client.get_locations.return_value = np.array(
+            [[1, 2, 3], [4, 5, 6]])
+        self.client.get_reference_samples.return_value = np.array([0.5, 1.0])
         self.recorder = self.create_recorder()
         self.recorder.init()
 
@@ -34,6 +37,16 @@ class TestGeneralRecorder(object):
         expected = np.dstack((np.tile([0], (3, steps)),
                               np.tile([1], (3, steps)))).T
         assert_equal(self.recorder.positions, expected)
+
+    def test_records_sample_locations(self):
+        assert_equal(
+            self.recorder.sample_locations,
+            self.client.get_locations.return_value)
+
+    def test_records_reference_samples(self):
+        assert_equal(
+            self.recorder.reference_samples,
+            self.client.get_reference_samples.return_value)
 
 
 class TestTaskPlumeRecorder(TestGeneralRecorder):
