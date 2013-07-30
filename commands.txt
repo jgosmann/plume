@@ -1,0 +1,1 @@
+fridge -p fridge.plugin.sumatra -- run -e test -r 'reason' python plume.py -c conf.py -o plume.h5
