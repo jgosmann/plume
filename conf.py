@@ -26,4 +26,4 @@ behavior = behaviors.DUCB(
     margin=10, predictor=predictor, grid_resolution=[52, 52, 12], kappa=0.15e-9,
     gamma=-1e-18, target_precision=1, **global_conf)
 
-print behavior
+task = 'TaskPlumeSingleSourceGaussianDefaultControls'

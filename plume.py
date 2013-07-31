@@ -118,8 +118,7 @@ if __name__ == '__main__':
             port = int(qrsim.match.group(1))
             client.connect_to('127.0.0.1', port)
         num_steps = conf['global_conf']['duration_in_steps']
-        client.init(
-            'TaskPlumeSingleSourceGaussianDefaultControls', num_steps)
+        client.init(conf['task'], num_steps)
 
         for i in xrange(conf['repeats']):
             output_filename = os.path.join(
