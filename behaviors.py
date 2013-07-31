@@ -115,13 +115,14 @@ class ToMaxVariance(object):
 class PDUCB(object):
     def __init__(
             self, margin, predictor, grid_resolution, area, kappa, gamma,
-            target_precision, duration_in_steps=1000):
+            epsilon, target_precision, duration_in_steps=1000):
         self.margin = margin
         self.predictor = predictor
         self.grid_resolution = grid_resolution
         self.area = area
         self.kappa = kappa
         self.gamma = gamma
+        self.epsilon = epsilon
         self.target_precision = target_precision
         self.expected_steps = duration_in_steps
         self.step = 0
@@ -132,6 +133,7 @@ class PDUCB(object):
         return self.__class__.__name__ + '(margin=%(margin)r, ' \
             'predictor=%(predictor)r, grid_resolution=%(grid_resolution)r, ' \
             'area=%(area)r, kappa=%(kappa)r, gamma=%(gamma)r, ' \
+            'epsilon=%(epsilon)r, ' \
             'target_precision=%(target_precision)r)' % self.__dict__
 
     def get_controls(self, noisy_states, plume_measurement):
@@ -164,7 +166,7 @@ class PDUCB(object):
             dist = np.apply_along_axis(
                 norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
                 self.positions.data[-1]).reshape(x.shape)
-            ducb = np.log(pred + 1e-30) + \
+            ducb = np.log(pred + self.epsilon) + \
                 self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
 
             wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
