@@ -259,21 +259,26 @@ class PlumeVisualizer(HasTraits):
         cls._set_cutoff(vol, cutoff)
         return vol
 
-    @on_trait_change('prediction.activated, mse.activated')
+    @on_trait_change('prediction.activated, mse.activated, truth.activated')
     def init_camera(self):
-        all_activated = not self.prediction.scene.interactor is None and \
-            not self.mse.scene.interactor is None
+        all_activated = self.prediction.scene.interactor is not None and \
+            self.mse.scene.interactor is not None and \
+            self.truth.scene.interactor is not None
         if not all_activated:
             return
 
         self.prediction.scene.interactor.interactor_style = \
             RotateAroundZInteractor()
         self.mse.scene.interactor.interactor_style = RotateAroundZInteractor()
+        self.truth.scene.interactor.interactor_style = \
+            RotateAroundZInteractor()
 
         self._plot_fit()
 
         mlab.sync_camera(self.prediction.mayavi_scene, self.mse.mayavi_scene)
         mlab.sync_camera(self.mse.mayavi_scene, self.prediction.mayavi_scene)
+        mlab.sync_camera(self.mse.mayavi_scene, self.truth.mayavi_scene)
+        mlab.sync_camera(self.truth.mayavi_scene, self.mse.mayavi_scene)
         mlab.view(
             azimuth=135, elevation=135, distance=600, roll=-120,
             figure=self.prediction.mayavi_scene)
