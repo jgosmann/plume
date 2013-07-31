@@ -112,7 +112,7 @@ class ToMaxVariance(object):
         return self.area + np.array([self.margin, -self.margin])
 
 
-class DUCB(object):
+class PDUCB(object):
     def __init__(
             self, margin, predictor, grid_resolution, area, kappa, gamma,
             target_precision, duration_in_steps=1000):
