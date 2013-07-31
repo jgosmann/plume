@@ -55,13 +55,35 @@ class Controller(object):
         self.client.step(self.client.timestep, c)
 
 
+def do_simulation_run(output_filename, conf, client):
+    with tables.open_file(output_filename, 'w') as fileh:
+        fileh.set_node_attr('/', 'conf', conf)
+        num_steps = conf['global_conf']['duration_in_steps']
+        predictor = conf['predictor']
+
+        client = ControlsRecorder(fileh, client, num_steps)
+        recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
+
+        controller = Controller(client, conf['behavior'])
+        controller.add_recorder(recorder)
+        controller.init(
+            'TaskPlumeSingleSourceGaussianDefaultControls', num_steps)
+
+        if hasattr(conf['behavior'], 'targets'):
+            targets_recorder = TargetsRecorder(
+                fileh, conf['behavior'], client.numUAVs, num_steps)
+            controller.add_recorder(targets_recorder)
+
+        controller.run(num_steps)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-c', '--config', nargs=1, type=str, help='Configuration to load.')
     parser.add_argument(
-        '-o', '--output', nargs=1, type=str, default=['plume.h5'],
-        help='Output file name.')
+        '-o', '--output', nargs=1, type=str, default=['plume'],
+        help='Output file name without extension (will be add automatically).')
     parser.add_argument(
         '-H', '--host', nargs=1, type=str,
         help='Host running QRSim. If not given it will be tried to launch an '
@@ -77,41 +99,23 @@ if __name__ == '__main__':
     logger.setLevel(logging.INFO)
 
     conf = load_config(args.config[0])
-    predictor = conf['predictor']
 
-    output_filename = os.path.join(args.output_dir[0], args.output[0])
+    with TaskPlumeClient() as client:
+        if args.host is not None:
+            client.connect_to(args.host[0], args.port[0])
+        else:
+            qrsim = pexpect.spawn(
+                'matlab -nodesktop -nosplash -r "'
+                "cd(fileparts(which('QRSimTCPServer')));"
+                "QRSimTCPServer(0);"
+                'quit;"',
+                timeout=120)
+            qrsim.logfile = sys.stdout
+            qrsim.expect(r'Listening on port: (\d+)')
+            port = int(qrsim.match.group(1))
+            client.connect_to('127.0.0.1', port)
 
-    with tables.open_file(output_filename, 'w') as fileh:
-        fileh.set_node_attr('/', 'conf', conf)
-        num_steps = conf['global_conf']['duration_in_steps']
-
-        with TaskPlumeClient() as client:
-            client = ControlsRecorder(fileh, client, num_steps)
-
-            if args.host is not None:
-                client.connect_to(args.host[0], args.port[0])
-            else:
-                qrsim = pexpect.spawn(
-                    'matlab -nodesktop -nosplash -r "'
-                    "cd(fileparts(which('QRSimTCPServer')));"
-                    "QRSimTCPServer(0);"
-                    'quit;"',
-                    timeout=120)
-                qrsim.logfile = sys.stdout
-                qrsim.expect(r'Listening on port: (\d+)')
-                port = int(qrsim.match.group(1))
-                client.connect_to('127.0.0.1', port)
-
-            recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
-
-            controller = Controller(client, conf['behavior'])
-            controller.add_recorder(recorder)
-            controller.init(
-                'TaskPlumeSingleSourceGaussianDefaultControls', num_steps)
-
-            if hasattr(conf['behavior'], 'targets'):
-                targets_recorder = TargetsRecorder(
-                    fileh, conf['behavior'], client.numUAVs, num_steps)
-                controller.add_recorder(targets_recorder)
-
-            controller.run(num_steps)
+        for i in xrange(conf['repeats']):
+            output_filename = os.path.join(
+                args.output_dir[0], args.output[0] + '.%i.h5' % i)
+            do_simulation_run(output_filename, conf, client)
