@@ -199,7 +199,7 @@ class PlumeVisualizer(HasTraits):
 
     def __init__(self, data):
         HasTraits.__init__(self)
-        self.conf = data.get_node_attr('/', 'conf')
+        self.conf = data.root.conf[0]
         self.render_prediction_with_preview = PreviewEnabledRenderingFunction(
             self.prediction.scene)
         self.render_mse_with_preview = PreviewEnabledRenderingFunction(
