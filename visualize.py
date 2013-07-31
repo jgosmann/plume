@@ -25,7 +25,6 @@ from tvtk.util.ctf import ColorTransferFunction, PiecewiseFunction, set_lut
 import vtk
 
 from prediction import predict_on_volume
-import sklearn.base
 
 
 class RotateAroundZInteractor(tvtk.InteractorStyleTrackballCamera):
@@ -298,8 +297,6 @@ class PlumeVisualizer(HasTraits):
     def calc_estimation(self, data):
         area = self.conf['global_conf']['area']
         end = int(np.round(len(self.data.root.positions) * self.time))
-        # FIXME remove or do only for scikit learn
-        #predictor = sklearn.base.clone(self.conf['predictor'])
         predictor = self.conf['predictor']
         predictor.fit(
             data.root.positions.read()[0, :end, :],
