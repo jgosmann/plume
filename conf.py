@@ -1,6 +1,4 @@
 import behaviors
-import GPy as gpy
-import numpy as np
 import prediction
 
 global_conf = {
@@ -22,8 +20,10 @@ seedlist = [
 
 repeats = 2
 
-predictor = prediction.GPyAdapter(gpy.kern.rbf(
-    input_dim=3, lengthscale=np.sqrt(5)))
+predictor = prediction.GPyAdapter('''gpy.kern.rbf(
+    input_dim=3, lengthscale=np.sqrt(5))''')
 behavior = behaviors.DUCB(
     margin=10, predictor=predictor, grid_resolution=[52, 52, 12], kappa=0.15e-9,
     gamma=-1e-18, target_precision=1, **global_conf)
+
+print behavior

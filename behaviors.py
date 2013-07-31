@@ -128,6 +128,12 @@ class DUCB(object):
         self._controller = VelocityTowardsWaypointController(3, 3)
         self.targets = None
 
+    def __repr__(self):
+        return self.__class__.__name__ + '(margin=%(margin)r, ' \
+            'predictor=%(predictor)r, grid_resolution=%(grid_resolution)r, ' \
+            'area=%(area)r, kappa=%(kappa)r, gamma=%(gamma)r, ' \
+            'target_precision=%(target_precision)r)' % self.__dict__
+
     def get_controls(self, noisy_states, plume_measurement):
         if self.step == 0:
             self.positions = EnlargeableArray(

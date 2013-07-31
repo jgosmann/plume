@@ -3,8 +3,9 @@ import numpy as np
 
 
 class GPyAdapter(object):
-    def __init__(self, kernel):
-        self.kernel = kernel
+    def __init__(self, kernel_str):
+        self.kernel_str = kernel_str
+        self.kernel = eval(kernel_str)
 
     def fit(self, X, y):
         X = np.asarray(X)
@@ -29,6 +30,9 @@ class GPyAdapter(object):
             return pred, mse
         else:
             return pred
+
+    def __repr__(self):
+        return 'GPyAdapter(%s)' % self.kernel_str
 
 
 def predict_on_volume(predictor, area, grid_resolution):
