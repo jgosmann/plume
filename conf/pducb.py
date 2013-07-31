@@ -2,9 +2,10 @@ import behaviors
 import prediction
 
 global_conf = {
-    'duration_in_steps': 20,
+    'duration_in_steps': 1000,
     'area': [[-140, 140], [-140, 140], [-80, 0]]
 }
+repeats = 1
 
 seedlist = [
     1735251126, 1913496920,  892903318, 1711283958, 2499339060,
@@ -17,8 +18,6 @@ seedlist = [
     4144462580,  403974446,   70066335, 3630241351, 3187200994,
     1397374203, 3585223122, 2199147682, 3046919991, 2313845571,
     2449824212,  422755064, 4155945205, 1213473346, 2395030228]
-
-repeats = 2
 
 predictor = prediction.GPyAdapter('''gpy.kern.rbf(
     input_dim=3, lengthscale=np.sqrt(5))''')
