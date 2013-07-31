@@ -53,11 +53,9 @@ class RandomMovement(object):
         controls = UAVControls(len(noisy_states), 'vel')
         for uav in xrange(len(noisy_states)):
             # random velocity direction scaled by the max allowed velocity
-            #xy_vel = rnd.rand(2) - 0.5
-            # FIXME this is not random, but we need a fixed seed for
-            # reproducibility
-            xy_vel = np.array([0.0, 0.0])
-            #xy_vel /= norm(xy_vel) FIXME zero length vector
+            xy_vel = rnd.rand(2) - 0.5
+            if norm(xy_vel) != 0:
+                xy_vel /= norm(xy_vel)
             controls.U[uav, :2] = 0.5 * self.maxv * xy_vel
             # if the uav is going astray we point it back to the center
             p = np.asarray(noisy_states[uav].position[:2])
@@ -142,9 +140,10 @@ class DUCB(object):
         self.step += 1
 
         if self.positions.data.size // 3 < 2:
-            b = RandomMovement(3, np.mean(self.get_effective_area()[2]))
             self.targets = np.array([s.position for s in noisy_states])
-            return b.get_controls(noisy_states, plume_measurement)
+            controls = UAVControls(len(noisy_states), 'vel')
+            controls.U.fill(0.0)
+            return controls
 
         if norm(self.targets - noisy_states[0].position) < \
                 self.target_precision:
