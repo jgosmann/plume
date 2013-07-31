@@ -355,8 +355,6 @@ class PlumeVisualizer(HasTraits):
         self._populate_scene(self.prediction, 'Prediction')
         self._populate_scene(self.mse, 'mse')
         self._plot_fit()
-        #self.prediction.scene.disable_render = False
-        #self.mse.scene.disable_render = False
         self.render_prediction_with_preview()
         self.render_mse_with_preview()
 
