@@ -28,16 +28,14 @@ class Controller(object):
             recorder.init()
         self.recorders.append(recorder)
 
-    def init(self, taskfile, duration_in_steps):
-        self.client.init(taskfile, False)
+    def init_new_sim(self, seed):
+        self.client.reset_seed(seed)
+        self.client.reset()
         # Ensure that all simulator variables have been set
         self.step_keeping_position()
         for recorder in self.recorders:
             recorder.init()
         self._initialized = True
-
-    def reset(self):
-        self.client.reset()
 
     def run(self, num_steps):
         for step in xrange(num_steps):
@@ -55,25 +53,30 @@ class Controller(object):
         self.client.step(self.client.timestep, c)
 
 
-def do_simulation_run(output_filename, conf, client):
+def do_simulation_run(i, output_filename, conf, client):
     with tables.open_file(output_filename, 'w') as fileh:
-        fileh.set_node_attr('/', 'conf', conf)
+        tbl = fileh.create_vlarray(
+            '/', 'conf', tables.ObjectAtom(),
+            title='Configuration used to generate the stored data.',
+            expectedrows=1)
+        tbl.append(conf)
+        fileh.create_array('/', 'repeat', [i], title='Number of repeat run.')
+
         num_steps = conf['global_conf']['duration_in_steps']
         predictor = conf['predictor']
 
         client = ControlsRecorder(fileh, client, num_steps)
-        recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
-
         controller = Controller(client, conf['behavior'])
+
+        recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
         controller.add_recorder(recorder)
-        controller.init(
-            'TaskPlumeSingleSourceGaussianDefaultControls', num_steps)
 
         if hasattr(conf['behavior'], 'targets'):
             targets_recorder = TargetsRecorder(
                 fileh, conf['behavior'], client.numUAVs, num_steps)
             controller.add_recorder(targets_recorder)
 
+        controller.init_new_sim(conf['seedlist'][i])
         controller.run(num_steps)
 
 
@@ -114,8 +117,11 @@ if __name__ == '__main__':
             qrsim.expect(r'Listening on port: (\d+)')
             port = int(qrsim.match.group(1))
             client.connect_to('127.0.0.1', port)
+        num_steps = conf['global_conf']['duration_in_steps']
+        client.init(
+            'TaskPlumeSingleSourceGaussianDefaultControls', num_steps)
 
         for i in xrange(conf['repeats']):
             output_filename = os.path.join(
                 args.output_dir[0], args.output[0] + '.%i.h5' % i)
-            do_simulation_run(output_filename, conf, client)
+            do_simulation_run(i, output_filename, conf, client)

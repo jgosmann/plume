@@ -53,8 +53,11 @@ class RandomMovement(object):
         controls = UAVControls(len(noisy_states), 'vel')
         for uav in xrange(len(noisy_states)):
             # random velocity direction scaled by the max allowed velocity
-            xy_vel = rnd.rand(2) - 0.5
-            xy_vel /= norm(xy_vel)
+            #xy_vel = rnd.rand(2) - 0.5
+            # FIXME this is not random, but we need a fixed seed for
+            # reproducibility
+            xy_vel = np.array([0.0, 0.0])
+            #xy_vel /= norm(xy_vel) FIXME zero length vector
             controls.U[uav, :2] = 0.5 * self.maxv * xy_vel
             # if the uav is going astray we point it back to the center
             p = np.asarray(noisy_states[uav].position[:2])

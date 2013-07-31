@@ -106,9 +106,6 @@ class ControlsRecorder(object):
         self.fileh = fileh
         self.client = client
         self.expected_steps = expected_steps
-
-    def init(self, task, realtime=False):
-        self.client.init(task, realtime)
         self.controls = self.fileh.create_table(
             self.fileh.root, 'controls', self.Controls,
             title='Controls used for each step command.',
