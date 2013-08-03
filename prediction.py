@@ -20,7 +20,7 @@ class GPyAdapter(object):
             y = np.atleast_2d(y).T
 
         self.model = gpy.models.GPRegression(X, y, self.kernel)
-        self.model['rbf_lengthscale'] = 30
+        self.model['.*_lengthscale'] = 30
         self.model['noise_variance'] = 0.1
         #self.model.constrain_bounded('.*rbf_variance', 0.1, 100)
         #self.model.constrain_bounded('.*rbf_lengthscale', 0.1, 140)
