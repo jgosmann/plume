@@ -3,13 +3,17 @@ import numpy as np
 
 
 class GPyAdapter(object):
-    def __init__(self, kernel_str):
+    def __init__(self, kernel_str, in_log_space=False):
         self.kernel_str = kernel_str
         self.kernel = eval(kernel_str)
+        self.in_log_space = in_log_space
 
     def fit(self, X, y):
         X = np.asarray(X)
-        y = np.asarray(y)
+        if self.in_log_space:
+            y = np.log(np.asarray(y))
+        else:
+            y = np.asarray(y)
 
         if y.ndim == 1:
             y = np.atleast_2d(y).T
@@ -25,7 +29,8 @@ class GPyAdapter(object):
 
     def predict(self, X, eval_MSE=False):
         pred, mse, lcb, ucb = self.model.predict(X)
-        #print np.min(mse)
+        if self.in_log_space:
+            pred = np.exp(pred)
         if eval_MSE:
             return pred, mse
         else:
