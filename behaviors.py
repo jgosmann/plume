@@ -169,6 +169,26 @@ class DUCBLike(object):
         raise NotImplementedError()
 
 
+class DUCB(DUCBLike):
+    def __init__(
+            self, margin, predictor, grid_resolution, area, kappa, gamma,
+            target_precision, duration_in_steps=1000):
+        super(PDUCB, self).__init__(
+            margin, predictor, grid_resolution, area, target_precision,
+            duration_in_steps)
+        self.kappa = kappa
+        self.gamma = gamma
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(margin=%(margin)r, ' \
+            'predictor=%(predictor)r, grid_resolution=%(grid_resolution)r, ' \
+            'area=%(area)r, kappa=%(kappa)r, gamma=%(gamma)r, ' \
+            'target_precision=%(target_precision)r)' % self.__dict__
+
+    def calc_ducb(self, pred, mse, dist):
+        return pred + self.kappa * mse + self.gamma * dist
+
+
 class PDUCB(DUCBLike):
     def __init__(
             self, margin, predictor, grid_resolution, area, kappa, gamma,
