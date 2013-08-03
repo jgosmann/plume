@@ -10,9 +10,10 @@ class GPyAdapter(object):
 
     def fit(self, X, y):
         X = np.asarray(X)
-        if self.in_log_space:
+        if hasattr(self, 'in_log_space') and self.in_log_space:
             y = np.log(np.asarray(y))
         else:
+            self.in_log_space = False
             y = np.asarray(y)
 
         if y.ndim == 1:
