@@ -20,13 +20,13 @@ class GPyAdapter(object):
             y = np.atleast_2d(y).T
 
         self.model = gpy.models.GPRegression(X, y, self.kernel)
-        self.model['.*_lengthscale'] = 30
-        self.model['noise_variance'] = 0.1
-        #self.model.constrain_bounded('.*rbf_variance', 0.1, 100)
-        #self.model.constrain_bounded('.*rbf_lengthscale', 0.1, 140)
-        #self.model.constrain_bounded('.*noise_variance', 0.01, 10)
-        #self.model.optimize()
-        #print(self.model)
+        #self.model['.*_lengthscale'] = 30
+        #self.model['noise_variance'] = 0.1
+        self.model.constrain_bounded('.*rbf_variance', 0.1, 100)
+        self.model.constrain_bounded('.*rbf_lengthscale', 0.1, 140)
+        self.model.constrain_bounded('.*noise_variance', 0.01, 10)
+        self.model.optimize()
+        print(self.model)
 
     def predict(self, X, eval_MSE=False):
         pred, mse, lcb, ucb = self.model.predict(X)
