@@ -112,29 +112,19 @@ class ToMaxVariance(object):
         return self.area + np.array([self.margin, -self.margin])
 
 
-class PDUCB(object):
+class DUCBLike(object):
     def __init__(
-            self, margin, predictor, grid_resolution, area, kappa, gamma,
-            epsilon, target_precision, duration_in_steps=1000):
+            self, margin, predictor, grid_resolution, area, target_precision,
+            duration_in_steps=1000):
         self.margin = margin
         self.predictor = predictor
         self.grid_resolution = grid_resolution
         self.area = area
-        self.kappa = kappa
-        self.gamma = gamma
-        self.epsilon = epsilon
         self.target_precision = target_precision
         self.expected_steps = duration_in_steps
         self.step = 0
         self._controller = VelocityTowardsWaypointController(3, 3)
         self.targets = None
-
-    def __repr__(self):
-        return self.__class__.__name__ + '(margin=%(margin)r, ' \
-            'predictor=%(predictor)r, grid_resolution=%(grid_resolution)r, ' \
-            'area=%(area)r, kappa=%(kappa)r, gamma=%(gamma)r, ' \
-            'epsilon=%(epsilon)r, ' \
-            'target_precision=%(target_precision)r)' % self.__dict__
 
     def get_controls(self, noisy_states, plume_measurement):
         if self.step == 0:
@@ -155,8 +145,6 @@ class PDUCB(object):
 
         if norm(self.targets - noisy_states[0].position) < \
                 self.target_precision:
-            # FIXME remove or do only for scikit learn
-            #predictor = sklearn.base.clone(self.predictor)
             self.predictor.fit(
                 self.positions.data.reshape((-1, 3)),
                 self.plume_measurements.data.flatten())
@@ -166,11 +154,9 @@ class PDUCB(object):
             dist = np.apply_along_axis(
                 norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
                 self.positions.data[-1]).reshape(x.shape)
-            ducb = np.log(pred + self.epsilon) + \
-                self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
+            ducb = self.calc_ducb(pred, mse, dist)
 
             wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
-
             self.targets = np.array(
                 len(noisy_states) * [[x[wp_idx], y[wp_idx], z[wp_idx]]])
 
@@ -178,3 +164,29 @@ class PDUCB(object):
 
     def get_effective_area(self):
         return self.area + np.array([self.margin, -self.margin])
+
+    def calc_ducb(self, pred, mse, dist):
+        raise NotImplementedError()
+
+
+class PDUCB(DUCBLike):
+    def __init__(
+            self, margin, predictor, grid_resolution, area, kappa, gamma,
+            epsilon, target_precision, duration_in_steps=1000):
+        super(PDUCB, self).__init__(
+            margin, predictor, grid_resolution, area, target_precision,
+            duration_in_steps)
+        self.kappa = kappa
+        self.gamma = gamma
+        self.epsilon = epsilon
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(margin=%(margin)r, ' \
+            'predictor=%(predictor)r, grid_resolution=%(grid_resolution)r, ' \
+            'area=%(area)r, kappa=%(kappa)r, gamma=%(gamma)r, ' \
+            'epsilon=%(epsilon)r, ' \
+            'target_precision=%(target_precision)r)' % self.__dict__
+
+    def calc_ducb(self, pred, mse, dist):
+        return np.log(pred + self.epsilon) + \
+            self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
