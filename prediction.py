@@ -60,6 +60,9 @@ class OnlineGP(object):
     def __init__(self, kernel, noise_var=1.0):
         self.kernel = kernel
         self.noise_var = noise_var
+        self.x_train = None
+        self.y_train = None
+        self.K_inv = None
 
     def fit(self, x_train, y_train):
         self.x_train = x_train
@@ -79,7 +82,27 @@ class OnlineGP(object):
         else:
             return pred
 
-    #def add_observation(x, y):
+    def add_observations(self, x, y):
+        if self.K_inv is None:
+            self.fit(x, y)
+            return
+
+        k_new_vs_old = self.kernel(x, self.x_train)
+        k_oldinv_new = np.dot(self.K_inv, k_new_vs_old.T)
+        f22_inv = inv(self.kernel(x, x) + np.eye(len(x)) * self.noise_var - \
+            np.dot(k_new_vs_old, k_oldinv_new))
+        f11 = self.K_inv + np.dot(
+            k_oldinv_new, np.dot(f22_inv, k_oldinv_new.T))
+        f12 = -np.dot(k_oldinv_new, f22_inv)
+        l = len(self.K_inv) + len(x)
+        self.K_inv = np.empty((l, l))
+        self.K_inv[:len(f11), :len(f11)] = f11
+        self.K_inv[:len(f11), len(f11):] = f12
+        self.K_inv[len(f11):, :len(f11)] = f12.T
+        self.K_inv[len(f11):, len(f11):] = f22_inv
+
+        self.x_train = np.append(self.x_train, x, axis=0)
+        self.y_train = np.append(self.y_train, y, axis=0)
 
 
 def predict_on_volume(predictor, area, grid_resolution):
