@@ -89,7 +89,8 @@ class OnlineGP(object):
 
         k_new_vs_old = self.kernel(x, self.x_train)
         k_oldinv_new = np.dot(self.K_inv, k_new_vs_old.T)
-        f22_inv = inv(self.kernel(x, x) + np.eye(len(x)) * self.noise_var - \
+        f22_inv = inv(
+            self.kernel(x, x) + np.eye(len(x)) * self.noise_var -
             np.dot(k_new_vs_old, k_oldinv_new))
         f11 = self.K_inv + np.dot(
             k_oldinv_new, np.dot(f22_inv, k_oldinv_new.T))
