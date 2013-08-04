@@ -25,7 +25,7 @@ class TestOnlineGP(object):
 
         x_star = np.array([[-3, 1]]).T
         expected = [1.04585738, 1.04888027]
-        unused, mse = self.gp.predict(x_star, eval_mse=True)
+        unused, mse = self.gp.predict(x_star, eval_MSE=True)
         assert_almost_equal(mse, expected)
 
     def test_allows_adding_new_datapoints_online(self):
@@ -38,6 +38,6 @@ class TestOnlineGP(object):
         x_star = np.array([[-3, 1]]).T
         expected = [-0.78511166, 0.37396387]
         expected_mse = [1.04585738, 1.04888027]
-        pred, mse = self.gp.predict(x_star, eval_mse=True)
+        pred, mse = self.gp.predict(x_star, eval_MSE=True)
         assert_almost_equal(pred, expected)
         assert_almost_equal(mse, expected_mse)

@@ -71,11 +71,11 @@ class OnlineGP(object):
             self.kernel(x_train, x_train) +
             np.eye(len(x_train)) * self.noise_var)
 
-    def predict(self, x, eval_mse=False):
+    def predict(self, x, eval_MSE=False):
         K_new_vs_old = self.kernel(x, self.x_train)
         pred = np.dot(
             K_new_vs_old, np.dot(self.K_inv, self.y_train))
-        if eval_mse:
+        if eval_MSE:
             mse = self.kernel(x, x) - np.dot(
                 K_new_vs_old, np.dot(self.K_inv, K_new_vs_old.T))
             return pred, np.diag(mse) + self.noise_var
