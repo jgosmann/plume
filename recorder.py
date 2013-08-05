@@ -74,20 +74,22 @@ class TaskPlumeRecorder(GeneralRecorder):
     def record(self):
         GeneralRecorder.record(self)
 
-        self._plume_measurements.append(np.atleast_2d(
-            self.client.get_plume_sensor_outputs()).T)
+        measurement = np.atleast_2d(self.client.get_plume_sensor_outputs()).T
+        self._plume_measurements.append(measurement)
 
         reward = -np.inf
-        if len(self._plume_measurements) > 1:
-            # FIXME remove or do only for scikit learn
-            #predictor = sklearn.base.clone(self.predictor)
-            self.predictor.fit(
-                self.positions.reshape((len(self._plume_measurements), -1)),
-                self.plume_measurements.flat)
-            samples = self.predictor.predict(self._locations)
-            self.client.set_samples(samples)
-            reward = self.client.get_reward()
-        self._rewards.append([reward])
+        # FIXME remove or do only for scikit learn
+        #predictor = sklearn.base.clone(self.predictor)
+        #self.predictor.fit(
+            #self.positions.reshape((len(self._plume_measurements), -1)),
+            #self.plume_measurements.flat)
+        #self.predictor.add_observations(
+            #self.positions[:, -1, :], measurement.flatten())
+        #if len(self._plume_measurements) > 1:
+            #samples = self.predictor.predict(self._locations)
+            #self.client.set_samples(samples)
+            #reward = self.client.get_reward()
+        #self._rewards.append([reward])
 
     plume_measurements = property(lambda self: self._plume_measurements.read())
     rewards = property(lambda self: self._rewards.read())

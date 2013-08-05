@@ -145,9 +145,8 @@ class DUCBLike(object):
 
         if norm(self.targets - noisy_states[0].position) < \
                 self.target_precision:
-            self.predictor.fit(
-                self.positions.data.reshape((-1, 3)),
-                self.plume_measurements.data.flatten())
+            self.predictor.add_observations(
+                self.positions.data[-1], self.plume_measurements.data[-1])
             pred, mse, (x, y, z) = predict_on_volume(
                 self.predictor, self.get_effective_area(),
                 self.grid_resolution)

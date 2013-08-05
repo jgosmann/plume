@@ -8,19 +8,21 @@ class GPyAdapter(object):
         self.kernel_str = kernel_str
         self.kernel = eval(kernel_str)
         self.in_log_space = in_log_space
+        self.X = None
+        self.y = None
 
     def fit(self, X, y):
-        X = np.asarray(X)
+        self.X = np.asarray(X)
         if hasattr(self, 'in_log_space') and self.in_log_space:
-            y = np.log(np.asarray(y))
+            self.y = np.log(np.asarray(y))
         else:
             self.in_log_space = False
-            y = np.asarray(y)
+            self.y = np.asarray(y)
 
         if y.ndim == 1:
-            y = np.atleast_2d(y).T
+            self.y = np.atleast_2d(self.y).T
 
-        self.model = gpy.models.GPRegression(X, y, self.kernel)
+        self.model = gpy.models.GPRegression(self.X, self.y, self.kernel)
         self.model['.*_lengthscale'] = 30
         self.model['noise_variance'] = 0.1
         #self.model.constrain_bounded('.*rbf_variance', 0.1, 100)
@@ -28,6 +30,25 @@ class GPyAdapter(object):
         #self.model.constrain_bounded('.*noise_variance', 0.01, 10)
         #self.model.optimize()
         #print(self.model)
+
+    def add_observations(self, X, y):
+        if self.X is None:
+            self.fit(X, y)
+            return
+
+        self.X = np.append(self.X, X, axis=0)
+
+        if hasattr(self, 'in_log_space') and self.in_log_space:
+            y = np.log(np.asarray(y))
+        else:
+            y = np.asarray(y)
+        if y.ndim == 1:
+            y = np.atleast_2d(y).T
+        self.y = np.append(self.y, y, axis=0)
+
+        self.model = gpy.models.GPRegression(self.X, self.y, self.kernel)
+        self.model['.*_lengthscale'] = 30
+        self.model['noise_variance'] = 0.1
 
     def predict(self, X, eval_MSE=False):
         pred, mse, lcb, ucb = self.model.predict(X)
@@ -76,9 +97,11 @@ class OnlineGP(object):
         pred = np.dot(
             K_new_vs_old, np.dot(self.K_inv, self.y_train))
         if eval_MSE:
-            mse = self.kernel(x, x) - np.dot(
-                K_new_vs_old, np.dot(self.K_inv, K_new_vs_old.T))
-            return pred, np.diag(mse) + self.noise_var
+            mse = np.empty(len(x))
+            for i in xrange(len(x)):
+                mse[i] = 1.0 - np.dot(K_new_vs_old[i, :], np.dot(
+                    self.K_inv, K_new_vs_old[i, :]))
+            return pred, mse + self.noise_var
         else:
             return pred
 
