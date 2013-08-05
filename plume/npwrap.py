@@ -10,3 +10,16 @@ class GrowingArray(object):
         return self._data[:self.rows]
 
     data = property(get_data)
+
+    def append(self, item):
+        if self.rows >= len(self._data):
+            self._enlarge()
+        self._data[self.rows] = item
+        self.rows += 1
+
+    def _enlarge(self):
+        shape = list(self._data.shape)
+        shape[0] *= 2
+        new_data = np.empty(shape, self._data.dtype)
+        new_data[:self.rows] = self._data[:self.rows]
+        self._data = new_data
