@@ -69,8 +69,10 @@ class TestTaskPlumeRecorder(TestGeneralRecorder):
 
     def test_records_rewards(self):
         steps = 4
+        self.predictor.trained = False
         for i in xrange(steps):
             self.recorder.record()
+            self.predictor.trained = True
         expected_calls = steps * [call.set_samples(ANY), call.get_reward()]
         assert_that(self.client.mock_calls, has_items_in_relative_order(
             *expected_calls))
