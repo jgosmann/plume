@@ -11,6 +11,7 @@ class GPyAdapter(object):
         self.noise_variance = noise_variance
         self.X = None
         self.y = None
+        self.trained = False
 
     def fit(self, X, y):
         self.X = np.asarray(X)
@@ -24,9 +25,10 @@ class GPyAdapter(object):
             self.y = np.atleast_2d(self.y).T
 
         self._refit_model()
+        self.trained = True
 
     def add_observations(self, X, y):
-        if self.X is None:
+        if not self.trained:
             self.fit(X, y)
             return
 
@@ -74,12 +76,14 @@ class RBFKernel(object):
 
 
 class OnlineGP(object):
+    # FIXME write tests for trained attribute
     def __init__(self, kernel, noise_var=1.0):
         self.kernel = kernel
         self.noise_var = noise_var
         self.x_train = None
         self.y_train = None
         self.K_inv = None
+        self.trained = False
 
     def fit(self, x_train, y_train):
         self.x_train = x_train
@@ -87,6 +91,7 @@ class OnlineGP(object):
         self.K_inv = inv(
             self.kernel(x_train, x_train) +
             np.eye(len(x_train)) * self.noise_var)
+        self.trained = True
 
     def predict(self, x, eval_MSE=False):
         K_new_vs_old = self.kernel(x, self.x_train)
@@ -102,7 +107,7 @@ class OnlineGP(object):
             return pred
 
     def add_observations(self, x, y):
-        if self.K_inv is None:
+        if not self.trained:
             self.fit(x, y)
             return
 
