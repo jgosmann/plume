@@ -4,10 +4,11 @@ from numpy.linalg import inv
 
 
 class GPyAdapter(object):
-    def __init__(self, kernel_str, in_log_space=False):
+    def __init__(self, kernel_str, noise_variance, in_log_space=False):
         self.kernel_str = kernel_str
         self.kernel = eval(kernel_str)
         self.in_log_space = in_log_space
+        self.noise_variance = noise_variance
         self.X = None
         self.y = None
 
@@ -22,14 +23,7 @@ class GPyAdapter(object):
         if y.ndim == 1:
             self.y = np.atleast_2d(self.y).T
 
-        self.model = gpy.models.GPRegression(self.X, self.y, self.kernel)
-        self.model['.*_lengthscale'] = 30
-        self.model['noise_variance'] = 0.1
-        #self.model.constrain_bounded('.*rbf_variance', 0.1, 100)
-        #self.model.constrain_bounded('.*rbf_lengthscale', 0.1, 140)
-        #self.model.constrain_bounded('.*noise_variance', 0.01, 10)
-        #self.model.optimize()
-        #print(self.model)
+        self._refit_model()
 
     def add_observations(self, X, y):
         if self.X is None:
@@ -46,9 +40,11 @@ class GPyAdapter(object):
             y = np.atleast_2d(y).T
         self.y = np.append(self.y, y, axis=0)
 
+        self._refit_model()
+
+    def _refit_model(self):
         self.model = gpy.models.GPRegression(self.X, self.y, self.kernel)
-        self.model['.*_lengthscale'] = 30
-        self.model['noise_variance'] = 0.1
+        self.model['noise_variance'] = self.noise_variance
 
     def predict(self, X, eval_MSE=False):
         pred, mse, lcb, ucb = self.model.predict(X)
