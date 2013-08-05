@@ -76,7 +76,6 @@ class RBFKernel(object):
 
 
 class OnlineGP(object):
-    # FIXME write tests for trained attribute
     def __init__(self, kernel, noise_var=1.0):
         self.kernel = kernel
         self.noise_var = noise_var

@@ -1,3 +1,4 @@
+from hamcrest import assert_that, is_
 import numpy as np
 from numpy.testing import assert_almost_equal
 
@@ -41,3 +42,10 @@ class TestOnlineGP(object):
         pred, mse = self.gp.predict(x_star, eval_MSE=True)
         assert_almost_equal(pred, expected)
         assert_almost_equal(mse, expected_mse)
+
+    def test_has_trained_indicator(self):
+        assert_that(self.gp.trained, is_(False))
+        x = np.array([[-4, -2, -0.5, 0, 2]]).T
+        y = [-2, 0, 1, 2, -1]
+        self.gp.fit(x, y)
+        assert_that(self.gp.trained, is_(True))
