@@ -18,7 +18,7 @@ class TestGrowingArray(object):
         expected = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
         assert_equal(a.data, expected)
 
-    def test_enlarges_buffer_as_needed(self):
+    def test_append_enlarges_buffer_as_needed(self):
         a = GrowingArray((2, 2), dtype='int', expected_rows=1)
         a.append(np.array([[1, 2], [3, 4]]))
         a.append(np.array([[5, 6], [7, 8]]))
@@ -33,6 +33,14 @@ class TestGrowingArray(object):
 
     def test_can_extend_data(self):
         a = GrowingArray((2, 2), dtype='int')
+        a.extend(np.array([
+            [[1, 2], [3, 4]],
+            [[5, 6], [7, 8]]]))
+        expected = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        assert_equal(a.data, expected)
+
+    def test_extend_enlarges_buffer_as_needed(self):
+        a = GrowingArray((2, 2), dtype='int', expected_rows=1)
         a.extend(np.array([
             [[1, 2], [3, 4]],
             [[5, 6], [7, 8]]]))

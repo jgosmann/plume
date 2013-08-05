@@ -20,12 +20,18 @@ class GrowingArray(object):
         self.rows += 1
 
     def extend(self, items):
+        space_left = self._data.shape[0] - self.rows
+        if space_left < len(items):
+            self._enlarge(len(items) - space_left)
         self._data[self.rows:(self.rows + len(items))] = items
         self.rows += len(items)
 
-    def _enlarge(self):
+    def _enlarge(self, by_at_least=1):
         shape = list(self._data.shape)
-        shape[0] *= 2
+        enlarge_by = shape[0]
+        while enlarge_by < by_at_least:
+            enlarge_by *= 2
+        shape[0] += enlarge_by
         new_data = np.empty(shape, self._data.dtype)
         new_data[:self.rows] = self._data[:self.rows]
         self._data = new_data
