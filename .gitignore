@@ -5,3 +5,4 @@
 .smt
 Data
 conf
+*.egg-info
