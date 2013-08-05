@@ -12,6 +12,8 @@ class GrowingArray(object):
     data = property(get_data)
 
     def append(self, item):
+        item = np.asarray(item)
+        assert self._data.shape[1:] == item.shape, 'Incompatible shape.'
         if self.rows >= len(self._data):
             self._enlarge()
         self._data[self.rows] = item

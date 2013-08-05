@@ -1,3 +1,4 @@
+from nose.tools import raises
 import numpy as np
 from numpy.testing import assert_equal
 
@@ -24,5 +25,8 @@ class TestGrowingArray(object):
         expected = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
         assert_equal(a.data, expected)
 
-    # check enlarging
-    # check appending wrong shape
+    # FIXME use ValueError if possible, but try to keep assertion
+    @raises(AssertionError)
+    def test_raises_exception_when_appending_wrong_shape(self):
+        a = GrowingArray((2, 2), dtype='int')
+        a.append(np.array([1, 2]))
