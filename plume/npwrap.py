@@ -20,8 +20,8 @@ class GrowingArray(object):
         self.rows += 1
 
     def extend(self, items):
-        for item in items:
-            self.append(item)
+        self._data[self.rows:(self.rows + len(items))] = items
+        self.rows += len(items)
 
     def _enlarge(self):
         shape = list(self._data.shape)
