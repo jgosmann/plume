@@ -14,12 +14,16 @@ class GrowingArray(object):
     def append(self, item):
         item = np.asarray(item)
         assert self._data.shape[1:] == item.shape, 'Incompatible shape.'
+
         if self.rows >= len(self._data):
             self._enlarge()
         self._data[self.rows] = item
         self.rows += 1
 
     def extend(self, items):
+        items = np.asarray(items)
+        assert self._data.shape[1:] == items.shape[1:], 'Incompatible shape.'
+
         space_left = self._data.shape[0] - self.rows
         if space_left < len(items):
             self._enlarge(len(items) - space_left)
