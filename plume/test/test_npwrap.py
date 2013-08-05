@@ -30,3 +30,11 @@ class TestGrowingArray(object):
     def test_raises_exception_when_appending_wrong_shape(self):
         a = GrowingArray((2, 2), dtype='int')
         a.append(np.array([1, 2]))
+
+    def test_can_extend_data(self):
+        a = GrowingArray((2, 2), dtype='int')
+        a.extend(np.array([
+            [[1, 2], [3, 4]],
+            [[5, 6], [7, 8]]]))
+        expected = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        assert_equal(a.data, expected)
