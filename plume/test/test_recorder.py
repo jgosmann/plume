@@ -1,12 +1,14 @@
+import tempfile
+
 from hamcrest import assert_that, is_, only_contains
 from matchers import has_items_in_relative_order
 from mock import ANY, call, MagicMock
 from numpy.testing import assert_equal
 from qrsim.tcpclient import ctrl_signal_dimensions, UAVControls, UAVState
-from recorder import ControlsRecorder, GeneralRecorder, TaskPlumeRecorder
 import numpy as np
 import tables
-import tempfile
+
+from plume.recorder import ControlsRecorder, GeneralRecorder, TaskPlumeRecorder
 
 
 class TestGeneralRecorder(object):

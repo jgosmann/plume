@@ -1,8 +1,9 @@
-from datastructure import EnlargeableArray
 from hamcrest import assert_that, is_
 from nose.tools import raises
 from numpy.testing import assert_equal
 import numpy as np
+
+from plume.datastructure import EnlargeableArray
 
 
 class TestEnlargableArray(object):

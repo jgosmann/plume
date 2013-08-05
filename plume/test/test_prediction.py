@@ -2,12 +2,13 @@ from hamcrest import assert_that, is_
 import numpy as np
 from numpy.testing import assert_almost_equal
 
-import prediction
+import plume.prediction
 
 
 class TestOnlineGP(object):
     def setUp(self):
-        self.gp = prediction.OnlineGP(prediction.RBFKernel(1.0), noise_var=0.5)
+        self.gp = plume.prediction.OnlineGP(
+            plume.prediction.RBFKernel(1.0), noise_var=0.5)
 
     def test_can_predict(self):
         x = np.array([[-4, -2, -0.5, 0, 2]]).T
