@@ -65,16 +65,16 @@ class GPyAdapter(object):
 
 class RBFKernel(object):
     def __init__(self, lengthscale, variance=1.0):
-        self.sq_lengthscale = lengthscale ** 2
+        self.lengthscale = lengthscale
         self.variance = variance
 
     def __call__(self, x1, x2):
-        y = np.empty((len(x1), len(x2)))
-        for i, j in np.ndindex(*y.shape):
-            d = x1[i] - x2[j]
-            y[i, j] = self.variance * np.exp(
-                -0.5 * np.dot(d, d) / self.sq_lengthscale)
-        return y
+        x1 = x1 / self.lengthscale
+        x2 = x2 / self.lengthscale
+        d = -2 * np.dot(x1, x2.T) + (
+            np.sum(np.square(x1), 1)[:, None] +
+            np.sum(np.square(x2), 1)[None, :])
+        return self.variance * np.exp(-0.5 * d)
 
 
 class OnlineGP(object):
