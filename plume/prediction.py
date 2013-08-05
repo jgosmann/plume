@@ -2,6 +2,8 @@ import GPy as gpy
 import numpy as np
 from numpy.linalg import inv
 
+from npwrap import GrowingArray
+
 
 class GPyAdapter(object):
     def __init__(self, kernel_str, noise_variance, in_log_space=False):
@@ -85,17 +87,19 @@ class OnlineGP(object):
         self.trained = False
 
     def fit(self, x_train, y_train):
-        self.x_train = x_train
-        self.y_train = y_train
+        self.x_train = GrowingArray(x_train.shape[1:])
+        self.y_train = GrowingArray(y_train.shape[1:])
+        self.x_train.extend(x_train)
+        self.y_train.extend(y_train)
         self.K_inv = inv(
             self.kernel(x_train, x_train) +
             np.eye(len(x_train)) * self.noise_var)
         self.trained = True
 
     def predict(self, x, eval_MSE=False):
-        K_new_vs_old = self.kernel(x, self.x_train)
+        K_new_vs_old = self.kernel(x, self.x_train.data)
         pred = np.dot(
-            K_new_vs_old, np.dot(self.K_inv, self.y_train))
+            K_new_vs_old, np.dot(self.K_inv, self.y_train.data))
         if eval_MSE:
             mse = np.empty(len(x))
             for i in xrange(len(x)):
@@ -110,7 +114,7 @@ class OnlineGP(object):
             self.fit(x, y)
             return
 
-        k_new_vs_old = self.kernel(x, self.x_train)
+        k_new_vs_old = self.kernel(x, self.x_train.data)
         k_oldinv_new = np.dot(self.K_inv, k_new_vs_old.T)
         f22_inv = inv(
             self.kernel(x, x) + np.eye(len(x)) * self.noise_var -
@@ -125,8 +129,8 @@ class OnlineGP(object):
         self.K_inv[len(f11):, :len(f11)] = f12.T
         self.K_inv[len(f11):, len(f11):] = f22_inv
 
-        self.x_train = np.append(self.x_train, x, axis=0)
-        self.y_train = np.append(self.y_train, y, axis=0)
+        self.x_train.extend(x)
+        self.y_train.extend(y)
 
 
 def predict_on_volume(predictor, area, grid_resolution):
