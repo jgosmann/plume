@@ -2,7 +2,7 @@ from nose.tools import raises
 import numpy as np
 from numpy.testing import assert_equal
 
-from plume.npwrap import GrowingArray
+from plume.npwrap import GrowingArray, Growing2dArray
 
 
 class TestGrowingArray(object):
@@ -52,3 +52,24 @@ class TestGrowingArray(object):
     def test_raises_exception_when_extending_wrong_shape(self):
         a = GrowingArray((2, 2), dtype='int')
         a.extend(np.array([1, 2]))
+
+
+class TestGrowing2dArray(object):
+    def test_can_initialize_empty_array(self):
+        a = Growing2dArray(dtype='int')
+        expected = np.empty((0, 0))
+        assert_equal(a.data, expected)
+
+    def test_can_enlarge(self):
+        a = Growing2dArray(dtype='int', expected_rows=1)
+        a.enlarge_by(2)
+        a.enlarge_by(1)
+        assert_equal(a.data.shape, (3, 3))
+
+    def test_enlarging_keeps_existing_data(self):
+        test_data = np.array([[1, 2], [3, 4]])
+        a = Growing2dArray(dtype='int', expected_rows=1)
+        a.enlarge_by(2)
+        a.data[:] = test_data
+        a.enlarge_by(1)
+        assert_equal(a.data[:2, :2], test_data)

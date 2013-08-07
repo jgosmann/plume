@@ -39,3 +39,24 @@ class GrowingArray(object):
         new_data = np.empty(shape, self._data.dtype)
         new_data[:self.rows] = self._data[:self.rows]
         self._data = new_data
+
+
+class Growing2dArray(object):
+    def __init__(self, dtype='float', expected_rows=100):
+        self._data = np.empty((expected_rows, expected_rows), dtype=dtype)
+        self.rows = 0
+        pass
+
+    def get_data(self):
+        return self._data[:self.rows, :self.rows]
+
+    data = property(get_data)
+    cols = property(lambda self: self.rows)
+
+    def enlarge_by(self, by):
+        final_size = self.rows + by
+        if self._data.shape[0] < final_size:
+            new_data = np.empty((final_size, final_size))
+            new_data[:self.rows, :self.cols] = self.data
+            self._data = new_data
+        self.rows = final_size
