@@ -106,11 +106,9 @@ class OnlineGP(object):
         pred = np.dot(
             K_new_vs_old, np.dot(self.K_inv, self.y_train.data))
         if eval_MSE:
-            mse = np.empty(len(x))
-            for i in xrange(len(x)):
-                mse[i] = 1.0 - np.dot(K_new_vs_old[i, :], np.dot(
-                    self.K_inv, K_new_vs_old[i, :]))
-            return pred, mse + self.noise_var
+            mse = 1.0 + self.noise_var - np.einsum(
+                'ij,jk,ik->i', K_new_vs_old, self.K_inv, K_new_vs_old)
+            return pred, mse
         else:
             return pred
 
