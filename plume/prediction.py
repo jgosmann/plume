@@ -117,23 +117,29 @@ class OnlineGP(object):
             self.fit(x, y)
             return
 
-        k_new_vs_old = self.kernel(x, self.x_train.data)
-        k_oldinv_new = np.dot(self.K_inv, k_new_vs_old.T)
-        ul_size = len(k_oldinv_new)
-
-        l = len(self.K_inv) + len(x)
-        enlarged = np.empty((l, l))
-        enlarged[:ul_size, :ul_size] = self.K_inv
+        l = len(self.K_inv)
+        new_size = l + len(x)
+        enlarged = np.empty((new_size, new_size))
+        enlarged[:l, :l] = self.K_inv
         self.K_inv = enlarged
         del enlarged
-        self.K_inv[ul_size:, ul_size:] = inv(
+
+        # The equations used here are stated in
+        # Singh, A., Ramos, F., Whyte, H. D., & Kaiser, W. J. (2010).
+        # Modeling and decision making in spatio-temporal processes for
+        # environmental surveillance, 5490–5497.
+        # for example.
+        K_obs = self.kernel(x, self.x_train.data)
+        projected = np.dot(self.K_inv, K_obs.T)
+
+        self.K_inv[l:, l:] = inv(
             self.kernel(x, x) + np.eye(len(x)) * self.noise_var -
-            np.dot(k_new_vs_old, k_oldinv_new))
-        f22_inv = self.K_inv[ul_size:, ul_size:]
-        f21 = np.dot(k_oldinv_new, f22_inv)
-        self.K_inv[:ul_size, ul_size:] = -f21
-        self.K_inv[ul_size:, :ul_size] = -f21.T
-        self.K_inv[:ul_size, :ul_size] += np.dot(f21, k_oldinv_new.T)
+            np.dot(K_obs, projected))
+        f22_inv = self.K_inv[l:, l:]
+        f21 = np.dot(projected, f22_inv)
+        self.K_inv[:l, l:] = -f21
+        self.K_inv[l:, :l] = -f21.T
+        self.K_inv[:l, :l] += np.dot(f21, projected.T)
 
         self.x_train.extend(x)
         self.y_train.extend(y)
