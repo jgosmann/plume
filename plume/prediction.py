@@ -88,23 +88,23 @@ class OnlineGP(object):
         self.trained = False
 
     def fit(self, x_train, y_train):
-        x_train = np.asarray(x_train)
-        y_train = np.asarray(y_train)
-        self.x_train = GrowingArray(
-            x_train.shape[1:], expected_rows=self.expected_samples)
-        self.y_train = GrowingArray(
-            y_train.shape[1:], expected_rows=self.expected_samples)
-        self.x_train.extend(x_train)
-        self.y_train.extend(y_train)
+        self.x_train = self._create_data_array(np.asarray(x_train))
+        self.y_train = self._create_data_array(np.asarray(y_train))
         self.K_inv = inv(
             self.kernel(x_train, x_train) +
             np.eye(len(x_train)) * self.noise_var)
         self.trained = True
 
+    def _create_data_array(self, initial_data):
+        growing_array = GrowingArray(
+            initial_data.shape[1:], expected_rows=self.expected_samples)
+        growing_array.extend(initial_data)
+        return growing_array
+
     def predict(self, x, eval_MSE=False):
         K_new_vs_old = self.kernel(x, self.x_train.data)
-        pred = np.dot(
-            K_new_vs_old, np.dot(self.K_inv, self.y_train.data))
+        pred = np.einsum(
+            'ij,jk,k', K_new_vs_old, self.K_inv, self.y_train.data)
         if eval_MSE:
             mse = 1.0 + self.noise_var - np.einsum(
                 'ij,jk,ik->i', K_new_vs_old, self.K_inv, K_new_vs_old)
