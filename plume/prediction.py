@@ -78,17 +78,20 @@ class RBFKernel(object):
 
 
 class OnlineGP(object):
-    def __init__(self, kernel, noise_var=1.0):
+    def __init__(self, kernel, noise_var=1.0, expected_samples=100):
         self.kernel = kernel
         self.noise_var = noise_var
+        self.expected_samples = expected_samples
         self.x_train = None
         self.y_train = None
         self.K_inv = None
         self.trained = False
 
     def fit(self, x_train, y_train):
-        self.x_train = GrowingArray(x_train.shape[1:])
-        self.y_train = GrowingArray(y_train.shape[1:])
+        self.x_train = GrowingArray(
+            x_train.shape[1:], expected_rows=self.expected_samples)
+        self.y_train = GrowingArray(
+            y_train.shape[1:], expected_rows=self.expected_samples)
         self.x_train.extend(x_train)
         self.y_train.extend(y_train)
         self.K_inv = inv(
