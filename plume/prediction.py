@@ -88,6 +88,8 @@ class OnlineGP(object):
         self.trained = False
 
     def fit(self, x_train, y_train):
+        x_train = np.asarray(x_train)
+        y_train = np.asarray(y_train)
         self.x_train = GrowingArray(
             x_train.shape[1:], expected_rows=self.expected_samples)
         self.y_train = GrowingArray(
