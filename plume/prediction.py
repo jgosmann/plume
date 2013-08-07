@@ -119,18 +119,21 @@ class OnlineGP(object):
 
         k_new_vs_old = self.kernel(x, self.x_train.data)
         k_oldinv_new = np.dot(self.K_inv, k_new_vs_old.T)
-        f22_inv = inv(
+        ul_size = len(k_oldinv_new)
+
+        l = len(self.K_inv) + len(x)
+        enlarged = np.empty((l, l))
+        enlarged[:ul_size, :ul_size] = self.K_inv
+        self.K_inv = enlarged
+        del enlarged
+        self.K_inv[ul_size:, ul_size:] = inv(
             self.kernel(x, x) + np.eye(len(x)) * self.noise_var -
             np.dot(k_new_vs_old, k_oldinv_new))
-        f11 = self.K_inv + np.dot(
-            k_oldinv_new, np.dot(f22_inv, k_oldinv_new.T))
-        f12 = -np.dot(k_oldinv_new, f22_inv)
-        l = len(self.K_inv) + len(x)
-        self.K_inv = np.empty((l, l))
-        self.K_inv[:len(f11), :len(f11)] = f11
-        self.K_inv[:len(f11), len(f11):] = f12
-        self.K_inv[len(f11):, :len(f11)] = f12.T
-        self.K_inv[len(f11):, len(f11):] = f22_inv
+        f22_inv = self.K_inv[ul_size:, ul_size:]
+        f21 = np.dot(k_oldinv_new, f22_inv)
+        self.K_inv[:ul_size, ul_size:] = -f21
+        self.K_inv[ul_size:, :ul_size] = -f21.T
+        self.K_inv[:ul_size, :ul_size] += np.dot(f21, k_oldinv_new.T)
 
         self.x_train.extend(x)
         self.y_train.extend(y)
