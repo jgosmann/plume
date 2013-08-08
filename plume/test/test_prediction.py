@@ -74,3 +74,24 @@ class TestOnlineGP(object):
         y = np.array([[-2, 0, 1, 2, -1]]).T
         self.gp.fit(x, y)
         assert_that(self.gp.trained, is_(True))
+
+    def test_can_calculate_prediction_derivative(self):
+        x = np.array([[-4, -2, -0.5, 0, 2]]).T
+        y = np.array([[-2, 0, 1, 2, -1]]).T
+        self.gp.fit(x, y)
+
+        x_star = np.array([[-3, 1]]).T
+        expected = np.array([[[-0.85538797]], [[1.30833924]]])
+        unused, actual = self.gp.predict(x_star, eval_derivatives=True)
+        assert_almost_equal(actual, expected)
+
+    def test_can_calculate_mse_derivative(self):
+        x = np.array([[-4, -2, -0.5, 0, 2]]).T
+        y = np.array([[-2, 0, 1, 2, -1]]).T
+        self.gp.fit(x, y)
+
+        x_star = np.array([[-3, 1]]).T
+        expected = np.array([[-0.00352932], [-0.00173095]])
+        unused, unused, unused, actual = self.gp.predict(
+            x_star, eval_MSE=True, eval_derivatives=True)
+        assert_almost_equal(actual, expected)

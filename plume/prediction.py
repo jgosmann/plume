@@ -69,6 +69,11 @@ class RBFKernel(object):
         self.variance = variance
 
     def __call__(self, x1, x2, eval_derivative=False):
+        """Returns the Gram matrix for the points given in x1 and x1.
+
+        If eval_derivative=True the derivative in x1 evaluated at the points in
+        x1 will be returned.
+        """
         x1 = x1 / self.lengthscale
         x2 = x2 / self.lengthscale
         d = -2 * np.dot(x1, x2.T) + (
@@ -113,22 +118,23 @@ class OnlineGP(object):
     def predict(self, x, eval_MSE=False, eval_derivatives=False):
         if eval_derivatives:
             K_new_vs_old, K_new_vs_old_derivative = self.kernel(
-                x, self.x_train.data, True)
+                x, self.x_train.data, eval_derivative=True)
         else:
             K_new_vs_old = self.kernel(x, self.x_train.data)
 
         svs = np.dot(self.K_inv.data, self.y_train.data)
         pred = np.dot(K_new_vs_old, svs)
         if eval_MSE:
+            mse_svs = np.dot(self.K_inv.data, K_new_vs_old.T)
             mse = 1.0 + self.noise_var - np.einsum(
-                'ij,jk,ik->i', K_new_vs_old, self.K_inv.data, K_new_vs_old)
+                'ij,ji->i', K_new_vs_old, mse_svs)
 
         if eval_derivatives:
-            pred_derivative = np.dot(K_new_vs_old_derivative, svs)
+            pred_derivative = np.einsum(
+                'ijk,jl->ilk', K_new_vs_old_derivative, svs)
             if eval_MSE:
                 mse_derivative = 2 * np.einsum(
-                    'ij,jk,ik->i', K_new_vs_old_derivative, self.K_inv.data,
-                    K_new_vs_old)
+                    'ijk,ji->ik', K_new_vs_old_derivative, mse_svs)
                 return pred, pred_derivative, mse, mse_derivative
             else:
                 return pred, pred_derivative
