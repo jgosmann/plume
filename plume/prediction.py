@@ -68,13 +68,18 @@ class RBFKernel(object):
         self.lengthscale = lengthscale
         self.variance = variance
 
-    def __call__(self, x1, x2):
+    def __call__(self, x1, x2, eval_derivative=False):
         x1 = x1 / self.lengthscale
         x2 = x2 / self.lengthscale
         d = -2 * np.dot(x1, x2.T) + (
             np.sum(np.square(x1), 1)[:, None] +
             np.sum(np.square(x2), 1)[None, :])
-        return self.variance * np.exp(-0.5 * d)
+        if eval_derivative:
+            s = np.rollaxis(np.atleast_3d(x1) - np.atleast_3d(x2).T, 1, 3)
+            return self.variance / self.lengthscale / self.lengthscale * \
+                s * np.exp(-0.5 * d)
+        else:
+            return self.variance * np.exp(-0.5 * d)
 
 
 class OnlineGP(object):
@@ -103,13 +108,29 @@ class OnlineGP(object):
         growing_array.extend(initial_data)
         return growing_array
 
-    def predict(self, x, eval_MSE=False):
-        K_new_vs_old = self.kernel(x, self.x_train.data)
-        pred = np.einsum(
-            'ij,jk,kl', K_new_vs_old, self.K_inv.data, self.y_train.data)
+    def predict(self, x, eval_MSE=False, eval_derivatives=False):
+        if eval_derivatives:
+            K_new_vs_old, K_new_vs_old_derivative = self.kernel(
+                x, self.x_train.data, True)
+        else:
+            K_new_vs_old = self.kernel(x, self.x_train.data)
+
+        svs = np.dot(self.K_inv.data, self.y_train.data)
+        pred = np.dot(K_new_vs_old, svs)
         if eval_MSE:
             mse = 1.0 + self.noise_var - np.einsum(
                 'ij,jk,ik->i', K_new_vs_old, self.K_inv.data, K_new_vs_old)
+
+        if eval_derivatives:
+            pred_derivative = np.dot(K_new_vs_old_derivative, svs)
+            if eval_MSE:
+                mse_derivative = 2 * np.einsum(
+                    'ij,jk,ik->i', K_new_vs_old_derivative, self.K_inv.data,
+                    K_new_vs_old)
+                return pred, pred_derivative, mse, mse_derivative
+            else:
+                return pred, pred_derivative
+        elif eval_MSE:
             return pred, mse
         else:
             return pred
@@ -140,6 +161,7 @@ class OnlineGP(object):
 
         self.x_train.extend(x)
         self.y_train.extend(y)
+
 
 def predict_on_volume(predictor, area, grid_resolution):
     ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
