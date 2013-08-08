@@ -2,7 +2,7 @@ import GPy as gpy
 import numpy as np
 from numpy.linalg import inv
 
-from npwrap import GrowingArray
+from npwrap import GrowingArray, Growing2dArray
 
 
 class GPyAdapter(object):
@@ -90,9 +90,11 @@ class OnlineGP(object):
     def fit(self, x_train, y_train):
         self.x_train = self._create_data_array(np.asarray(x_train))
         self.y_train = self._create_data_array(np.asarray(y_train))
-        self.K_inv = inv(
-            self.kernel(x_train, x_train) +
-            np.eye(len(x_train)) * self.noise_var)
+        self.K_inv = Growing2dArray(expected_rows=self.expected_samples)
+        self.K_inv.enlarge_by(len(x_train))
+        self.K_inv.data[:] = inv(
+            self.kernel(self.x_train.data, self.x_train.data) +
+            np.eye(len(self.x_train.data)) * self.noise_var)
         self.trained = True
 
     def _create_data_array(self, initial_data):
