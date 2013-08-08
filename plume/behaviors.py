@@ -1,9 +1,11 @@
-from datastructure import EnlargeableArray
-from prediction import predict_on_volume
-from qrsim.tcpclient import UAVControls
 import numpy as np
 from numpy.linalg import norm
 import numpy.random as rnd
+from qrsim.tcpclient import UAVControls
+from scipy.optimize import minimize
+
+from datastructure import EnlargeableArray
+from prediction import predict_on_volume
 
 
 class VelocityTowardsWaypointController(object):
@@ -151,24 +153,34 @@ class DUCBLike(object):
                     (-1, 3)),
                 self.plume_measurements.data[self.last_prediction_update:])
             self.last_prediction_update = self.step
-            pred, mse, (x, y, z) = predict_on_volume(
-                self.predictor, self.get_effective_area(),
-                self.grid_resolution)
-            dist = np.apply_along_axis(
-                norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
-                self.positions.data[-1]).reshape(x.shape)
-            ducb = self.calc_ducb(pred, mse, dist)
 
-            wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
-            self.targets = np.array(
-                len(noisy_states) * [[x[wp_idx], y[wp_idx], z[wp_idx]]])
+            res = minimize(
+                lambda x, s: self.calc_ducb(x, s), noisy_states[0].position,
+                args=(noisy_states,),
+                method='L-BFGS-B', jac=True, bounds=self.get_effective_area(),
+                options={'disp': True})
+
+            #pred, mse, (x, y, z) = predict_on_volume(
+                #self.predictor, self.get_effective_area(),
+                #self.grid_resolution)
+            #dist = np.apply_along_axis(
+                #norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
+                #self.positions.data[-1]).reshape(x.shape)
+            #ducb = np.log(pred + self.epsilon) + self.kappa * np.sqrt(mse) + \
+                #self.gamma * dist ** 2
+            #wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
+            #opt = [x[wp_idx], y[wp_idx], z[wp_idx]]
+
+            #print(res.x, opt)
+            #print(self.calc_ducb(res.x, noisy_states), self.calc_ducb(opt, noisy_states))
+            self.targets = np.array(len(noisy_states) * [res.x])
 
         return self._controller.get_controls(noisy_states, self.targets)
 
     def get_effective_area(self):
         return self.area + np.array([self.margin, -self.margin])
 
-    def calc_ducb(self, pred, mse, dist):
+    def calc_ducb(self, x, noisy_states):
         raise NotImplementedError()
 
 
@@ -189,6 +201,7 @@ class DUCB(DUCBLike):
             'target_precision=%(target_precision)r)' % self.__dict__
 
     def calc_ducb(self, pred, mse, dist):
+        # FIXME implement derivative
         return pred + self.kappa * mse + self.gamma * dist
 
 
@@ -210,9 +223,20 @@ class PDUCB(DUCBLike):
             'epsilon=%(epsilon)r, ' \
             'target_precision=%(target_precision)r)' % self.__dict__
 
-    def calc_ducb(self, pred, mse, dist):
-        return np.log(pred + self.epsilon) + \
-            self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
+    def calc_ducb(self, x, noisy_states):
+        x = np.atleast_2d(x)
+        pos = np.atleast_2d(noisy_states[0].position)
+        pred, pred_derivative, mse, mse_derivative = self.predictor.predict(
+            x, eval_MSE=True, eval_derivatives=True)
+        sq_dist = -2 * np.dot(x, pos.T) + (
+            np.sum(np.square(x), 1)[:, None] +
+            np.sum(np.square(pos), 1)[None, :])
+        ucb = np.log(np.maximum(0, pred) + self.epsilon) + self.kappa * np.sqrt(mse) + \
+            self.gamma * sq_dist
+        ucb_derivative = pred_derivative / (pred + self.epsilon) + \
+            self.kappa * mse_derivative * 0.5 / np.sqrt(mse) + \
+            self.gamma * 2 * np.sqrt(sq_dist)
+        return -np.squeeze(ucb), -np.squeeze(ucb_derivative).T
 
 
 class MDUCB(DUCBLike):
@@ -234,6 +258,7 @@ class MDUCB(DUCBLike):
             'target_precision=%(target_precision)r)' % self.__dict__
 
     def calc_ducb(self, pred, mse, dist):
+        # FIXME implement derivative
         return np.log(pred + self.epsilon) + \
             self.kappa * np.log(np.sqrt(mse) + self.epsilon) + \
             self.gamma * dist ** 2
