@@ -106,10 +106,10 @@ class OnlineGP(object):
     def predict(self, x, eval_MSE=False):
         K_new_vs_old = self.kernel(x, self.x_train.data)
         pred = np.einsum(
-            'ij,jk,k', K_new_vs_old, self.K_inv, self.y_train.data)
+            'ij,jk,kl', K_new_vs_old, self.K_inv.data, self.y_train.data)
         if eval_MSE:
             mse = 1.0 + self.noise_var - np.einsum(
-                'ij,jk,ik->i', K_new_vs_old, self.K_inv, K_new_vs_old)
+                'ij,jk,ik->i', K_new_vs_old, self.K_inv.data, K_new_vs_old)
             return pred, mse
         else:
             return pred
@@ -119,33 +119,27 @@ class OnlineGP(object):
             self.fit(x, y)
             return
 
-        l = len(self.K_inv)
-        new_size = l + len(x)
-        enlarged = np.empty((new_size, new_size))
-        enlarged[:l, :l] = self.K_inv
-        self.K_inv = enlarged
-        del enlarged
-
         # The equations used here are stated in
         # Singh, A., Ramos, F., Whyte, H. D., & Kaiser, W. J. (2010).
         # Modeling and decision making in spatio-temporal processes for
-        # environmental surveillance, 5490–5497.
+        # environmental surveillance, 5490-5497.
         # for example.
         K_obs = self.kernel(x, self.x_train.data)
-        projected = np.dot(self.K_inv, K_obs.T)
+        projected = np.dot(self.K_inv.data, K_obs.T)
 
-        self.K_inv[l:, l:] = inv(
+        l = len(self.K_inv.data)
+        self.K_inv.enlarge_by(len(x))
+        self.K_inv.data[l:, l:] = inv(
             self.kernel(x, x) + np.eye(len(x)) * self.noise_var -
             np.dot(K_obs, projected))
-        f22_inv = self.K_inv[l:, l:]
+        f22_inv = self.K_inv.data[l:, l:]
         f21 = np.dot(projected, f22_inv)
-        self.K_inv[:l, l:] = -f21
-        self.K_inv[l:, :l] = -f21.T
-        self.K_inv[:l, :l] += np.dot(f21, projected.T)
+        self.K_inv.data[:l, l:] = -f21
+        self.K_inv.data[l:, :l] = -f21.T
+        self.K_inv.data[:l, :l] += np.dot(f21, projected.T)
 
         self.x_train.extend(x)
         self.y_train.extend(y)
-
 
 def predict_on_volume(predictor, area, grid_resolution):
     ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
