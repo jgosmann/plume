@@ -82,7 +82,7 @@ class RBFKernel(object):
         res = self.variance * np.exp(-0.5 * d)
         if eval_derivative:
             s = np.rollaxis(np.atleast_3d(x1) - np.atleast_3d(x2).T, 1, 3)
-            der = self.variance / self.lengthscale * s * \
+            der = -self.variance / self.lengthscale * s * \
                 np.exp(-0.5 * d)[:, :, None]
             return res, der
         else:
@@ -133,7 +133,7 @@ class OnlineGP(object):
             pred_derivative = np.einsum(
                 'ijk,jl->ilk', K_new_vs_old_derivative, svs)
             if eval_MSE:
-                mse_derivative = 2 * np.einsum(
+                mse_derivative = -2 * np.einsum(
                     'ijk,ji->ik', K_new_vs_old_derivative, mse_svs)
                 return pred, pred_derivative, mse, mse_derivative
             else:

@@ -20,10 +20,10 @@ class TestRBFKernel(object):
         x1 = np.array([[1, 1, 1], [1, 2, 1]])
         x2 = np.array([[1, 2, 3], [4, 2, 1]])
         expected = np.array([
-            [[0.0, -0.00200828, -0.00401657],
-             [-5.80780750e-06, -1.93593583e-06, 0.0]],
-            [[0.0, 0.0, -0.016108],
-             [-2.32915823e-05, 0.00000000e+00, 0.00000000e+00]]])
+            [[0.0, 0.00200828, 0.00401657],
+             [5.80780750e-06, 1.93593583e-06, 0.0]],
+            [[0.0, 0.0, 0.016108],
+             [2.32915823e-05, 0.00000000e+00, 0.00000000e+00]]])
         unused, actual = RBFKernel(lengthscale=0.6, variance=0.75)(
             x1, x2, eval_derivative=True)
         assert_almost_equal(actual, expected)
@@ -81,7 +81,7 @@ class TestOnlineGP(object):
         self.gp.fit(x, y)
 
         x_star = np.array([[-3, 1]]).T
-        expected = np.array([[[-0.85538797]], [[1.30833924]]])
+        expected = np.array([[[0.85538797]], [[-1.30833924]]])
         unused, actual = self.gp.predict(x_star, eval_derivatives=True)
         assert_almost_equal(actual, expected)
 
