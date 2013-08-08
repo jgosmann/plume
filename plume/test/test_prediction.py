@@ -3,6 +3,30 @@ import numpy as np
 from numpy.testing import assert_almost_equal
 
 import plume.prediction
+from plume.prediction import RBFKernel
+
+
+class TestRBFKernel(object):
+    def test_kernel(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([
+            [0.00072298179430063214, 6.9693689985354893e-07],
+            [0.00289944010460460330, 2.7949898790590032e-06]])
+        actual = RBFKernel(lengthscale=0.6, variance=0.75)(x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_kernel_derivative(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([
+            [[0.0, -0.00200828, -0.00401657],
+             [-5.80780750e-06, -1.93593583e-06, 0.0]],
+            [[0.0, 0.0, -0.016108],
+             [-2.32915823e-05, 0.00000000e+00, 0.00000000e+00]]])
+        unused, actual = RBFKernel(lengthscale=0.6, variance=0.75)(
+            x1, x2, eval_derivative=True)
+        assert_almost_equal(actual, expected)
 
 
 class TestOnlineGP(object):

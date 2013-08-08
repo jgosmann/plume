@@ -74,12 +74,14 @@ class RBFKernel(object):
         d = -2 * np.dot(x1, x2.T) + (
             np.sum(np.square(x1), 1)[:, None] +
             np.sum(np.square(x2), 1)[None, :])
+        res = self.variance * np.exp(-0.5 * d)
         if eval_derivative:
             s = np.rollaxis(np.atleast_3d(x1) - np.atleast_3d(x2).T, 1, 3)
-            return self.variance / self.lengthscale / self.lengthscale * \
-                s * np.exp(-0.5 * d)
+            der = self.variance / self.lengthscale * s * \
+                np.exp(-0.5 * d)[:, :, None]
+            return res, der
         else:
-            return self.variance * np.exp(-0.5 * d)
+            return res
 
 
 class OnlineGP(object):
