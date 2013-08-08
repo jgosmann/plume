@@ -123,6 +123,7 @@ class DUCBLike(object):
         self.target_precision = target_precision
         self.expected_steps = duration_in_steps
         self.step = 0
+        self.last_prediction_update = 0
         self._controller = VelocityTowardsWaypointController(3, 3)
         self.targets = None
 
@@ -146,7 +147,10 @@ class DUCBLike(object):
         if norm(self.targets - noisy_states[0].position) < \
                 self.target_precision:
             self.predictor.add_observations(
-                self.positions.data[-1], self.plume_measurements.data[-1])
+                self.positions.data[self.last_prediction_update:].reshape(
+                    (-1, 3)),
+                self.plume_measurements.data[self.last_prediction_update:])
+            self.last_prediction_update = self.step
             pred, mse, (x, y, z) = predict_on_volume(
                 self.predictor, self.get_effective_area(),
                 self.grid_resolution)
