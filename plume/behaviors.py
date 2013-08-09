@@ -236,7 +236,8 @@ class PDUCB(DUCBLike):
         ucb_derivative = pred_derivative / (pred + self.epsilon) + \
             self.kappa * mse_derivative * 0.5 / np.sqrt(mse) + \
             self.gamma * 2 * np.sqrt(sq_dist)
-        return -np.squeeze(ucb), -np.squeeze(ucb_derivative).T
+        # FIXME neg ucb is not clear from function name
+        return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
 
 
 class MDUCB(DUCBLike):
