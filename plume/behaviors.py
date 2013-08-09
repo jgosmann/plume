@@ -164,9 +164,16 @@ class UCBBased(object):
             dist = np.apply_along_axis(
                 norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
                 self.positions.data[-1]).reshape(x.shape)
-            #ducb = self.ca0.15e-12 * np.log(pred + 1e-30) + self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
+            #ducb = np.log(pred + self.epsilon) + self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
+            ucb = np.log(np.maximum(0, pred) + self.epsilon) + self.kappa * np.sqrt(mse) + \
+                self.gamma * dist ** 2
 
             wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
+            print(-self.calc_ducb(res.x, noisy_states)[0], res.x,
+                  -self.calc_ducb(np.array([x[wp_idx], y[wp_idx], z[wp_idx]]), noisy_states)[0],
+                  [x[wp_idx], y[wp_idx], z[wp_idx]])
+            grad = -self.calc_ducb(res.x, noisy_states)[1]
+            print(grad)
             import matplotlib.pyplot as plt
             plt.figure()
             plt.subplot(2, 2, 1)
@@ -175,23 +182,18 @@ class UCBBased(object):
                 extent=self.get_effective_area()[:2].flatten(), origin='lower')
             plt.colorbar()
             plt.scatter(y[wp_idx], x[wp_idx], color='g')
-            plt.scatter(res.x[0], res.x[1], color='r')
+            plt.scatter(res.x[1], res.x[0], color='r')
             plt.scatter(noisy_states[0].y, noisy_states[0].x)
             plt.subplot(2, 2, 2)
+            res_idx = np.argmin(abs(z - res.x[2]))
             plt.imshow(
-                0.15e-12 * np.log(pred[:, :, wp_idx[2]] + 1e-30),
+                ucb[:, :, res_idx],
                 extent=self.get_effective_area()[:2].flatten(), origin='lower')
             plt.colorbar()
-            plt.subplot(2, 2, 3)
-            plt.imshow(
-                self.kappa * np.sqrt(mse[:, :, wp_idx[2]]),
-                extent=self.get_effective_area()[:2].flatten(), origin='lower')
-            plt.colorbar()
-            plt.subplot(2, 2, 4)
-            plt.imshow(
-                self.gamma * dist[:, :, wp_idx[2]],
-                extent=self.get_effective_area()[:2].flatten(), origin='lower')
-            plt.colorbar()
+            plt.scatter(y[wp_idx], x[wp_idx], color='g')
+            plt.scatter(res.x[1], res.x[0], color='r')
+            plt.scatter(noisy_states[0].y, noisy_states[0].x)
+            plt.plot([res.x[1], res.x[1] + grad[1]], [res.x[0], res.x[0] + grad[0]])
             plt.ioff()
             plt.show()
 
