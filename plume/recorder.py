@@ -1,6 +1,10 @@
+import logging
+
 from qrsim.tcpclient import ctrl_signal_dimensions, UAVControls
 import numpy as np
 import tables
+
+logger = logging.getLogger(__name__)
 
 
 class GeneralRecorder(object):
@@ -77,11 +81,14 @@ class TaskPlumeRecorder(GeneralRecorder):
         measurement = np.atleast_2d(self.client.get_plume_sensor_outputs()).T
         self._plume_measurements.append(measurement)
 
-        reward = -np.inf
         if self.predictor.trained:
-            samples = self.predictor.predict(self._locations)
-            self.client.set_samples(samples)
-            reward = self.client.get_reward()
+            samples = np.maximum(0, self.predictor.predict(self._locations))
+        else:
+            samples = np.zeros(len(self._locations))
+        self.client.set_samples(samples)
+        reward = self.client.get_reward()
+        logger.info('Reward: %f, Sample bounds: (%f, %f)' % (
+            reward, samples.min(), samples.max()))
         self._rewards.append([reward])
 
     plume_measurements = property(lambda self: self._plume_measurements.read())
