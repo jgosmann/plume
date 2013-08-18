@@ -172,14 +172,12 @@ class PlumeVisualizer(HasTraits):
 
     prediction_cutoff = Range(0.0, 1.0, 0.7)
     mse_cutoff = Range(0.0, 1.0, 0.5)
-    time = Range(0.0, 1.0, 1.0)
 
     view = View(
         HSplit(
             VGroup(
                 Item('prediction_cutoff', width=200),
                 Item('mse_cutoff', width=200),
-                Item('time', width=200)
             ),
             VSplit(
                 Item(
@@ -196,7 +194,7 @@ class PlumeVisualizer(HasTraits):
             )
         ), resizable=True, height=1.0, width=1.0)
 
-    def __init__(self, data):
+    def __init__(self, data, end=None):
         HasTraits.__init__(self)
         self.conf = data.root.conf[0]
         self.render_prediction_with_preview = PreviewEnabledRenderingFunction(
@@ -204,6 +202,10 @@ class PlumeVisualizer(HasTraits):
         self.render_mse_with_preview = PreviewEnabledRenderingFunction(
             self.mse.scene)
         self.data = data
+        if end is None:
+            self.end = len(self.data.root.positions)
+        else:
+            self.end = end
 
         self._init_scene(self.prediction)
         self._init_scene(self.mse)
@@ -218,8 +220,7 @@ class PlumeVisualizer(HasTraits):
         scene.foreground = (0.0, 0.0, 0.0)
 
     def _populate_scene(self, scene, title):
-        end = int(np.round(len(self.data.root.positions) * self.time))
-        trajectories = self.data.root.positions.read()[:, :end, :]
+        trajectories = self.data.root.positions.read()[:, :self.end, :]
         self.plot_uav_trajectories(trajectories, figure=scene.mayavi_scene)
 
         area = self.conf['global_conf']['area']
@@ -301,11 +302,10 @@ class PlumeVisualizer(HasTraits):
 
     def calc_estimation(self, data):
         area = self.conf['global_conf']['area']
-        end = int(np.round(len(self.data.root.positions) * self.time))
         predictor = self.conf['predictor']
         predictor.fit(
-            data.root.positions.read()[0, :end, :],
-            data.root.plume_measurements.read()[0, :end])
+            data.root.positions.read()[0, :self.end, :],
+            data.root.plume_measurements.read()[0, :self.end])
         return predict_on_volume(predictor, area, [30, 30, 20])
 
     @staticmethod
@@ -350,25 +350,18 @@ class PlumeVisualizer(HasTraits):
         self._set_cutoff(self._mse_volume, self.mse_cutoff)
         self.render_mse_with_preview()
 
-    def _time_changed(self):
-        self.render_prediction_with_preview.abort_rendering()
-        self.render_mse_with_preview.abort_rendering()
-        self.prediction.scene.disable_render = True
-        self.mse.scene.disable_render = True
-        self.prediction.mayavi_scene.children = []
-        self.mse.mayavi_scene.children = []
-        self._populate_scene(self.prediction, 'Prediction')
-        self._populate_scene(self.mse, 'mse')
-        self._plot_fit()
-        self.render_prediction_with_preview()
-        self.render_mse_with_preview()
-
 
 if __name__ == '__main__':
     # FIXME ensure Qt interface is used
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-t', nargs=1, type=int, help='Number of steps to visualize.')
     parser.add_argument('filename', nargs=1, type=str)
     args = parser.parse_args()
 
     with tables.open_file(args.filename[0], 'r') as data:
-        PlumeVisualizer(data).configure_traits()
+        end = None
+        if args.t is not None:
+            end = args.t[0]
+        visualizer = PlumeVisualizer(data, end)
+        visualizer.configure_traits()
