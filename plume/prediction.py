@@ -88,6 +88,13 @@ class RBFKernel(object):
         else:
             return res
 
+    def diag(self, x1, x2):
+        x1 = x1 / self.lengthscale
+        x2 = x2 / self.lengthscale
+        d = -2 * np.einsum('ij,ij->i', x1, x2) + (
+            np.sum(np.square(x1), 1) + np.sum(np.square(x2), 1))
+        return self.variance * np.exp(-0.5 * d)
+
 
 class OnlineGP(object):
     def __init__(self, kernel, noise_var=1.0, expected_samples=100):

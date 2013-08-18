@@ -28,6 +28,19 @@ class TestRBFKernel(object):
             x1, x2, eval_derivative=True)
         assert_almost_equal(actual, expected)
 
+    def test_diag_symmetric(self):
+        x = np.array([[1, 1, 1], [1, 2, 1]])
+        expected = 0.75 * np.ones(2)
+        actual = RBFKernel(lengthscale=0.6, variance=0.75).diag(x, x)
+        assert_almost_equal(actual, expected)
+
+    def test_diag(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([0.00072298179430063214, 2.7949898790590032e-06])
+        actual = RBFKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
+        assert_almost_equal(actual, expected)
+
 
 class TestOnlineGP(object):
     def setUp(self):
