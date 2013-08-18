@@ -157,8 +157,7 @@ class DUCBLike(object):
             res = minimize(
                 lambda x, s: self.calc_ducb(x, s), noisy_states[0].position,
                 args=(noisy_states,),
-                method='L-BFGS-B', jac=True, bounds=self.get_effective_area(),
-                options={'disp': True})
+                method='L-BFGS-B', jac=True, bounds=self.get_effective_area())
 
             #pred, mse, (x, y, z) = predict_on_volume(
                 #self.predictor, self.get_effective_area(),
