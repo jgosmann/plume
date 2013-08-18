@@ -126,7 +126,8 @@ class OnlineGP(object):
         pred = np.dot(K_new_vs_old, svs)
         if eval_MSE:
             mse_svs = np.dot(self.K_inv.data, K_new_vs_old.T)
-            mse = 1.0 + self.noise_var - np.einsum(
+            # FIXME formula works only for rbf kernel etc
+            mse = self.noise_var + self.kernel.variance - np.einsum(
                 'ij,ji->i', K_new_vs_old, mse_svs)
 
         if eval_derivatives:
