@@ -97,8 +97,6 @@ class ToMaxVariance(object):
             b = RandomMovement(3, np.mean(self.get_effective_area()[2]))
             return b.get_controls(noisy_states, plume_measurement)
 
-        # FIXME remove or do only for scikit learn
-        #predictor = sklearn.base.clone(self.predictor)
         self.predictor.fit(
             self.positions.data.reshape((-1, 3)),
             self.plume_measurements.data.flatten())
