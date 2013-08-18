@@ -3,7 +3,7 @@ import tempfile
 from hamcrest import assert_that, is_, only_contains
 from matchers import has_items_in_relative_order
 from mock import ANY, call, MagicMock
-from numpy.testing import assert_equal
+from numpy.testing import assert_almost_equal, assert_equal
 from qrsim.tcpclient import ctrl_signal_dimensions, UAVControls, UAVState
 import numpy as np
 import tables
@@ -22,7 +22,13 @@ class TestGeneralRecorder(object):
         self.client.get_locations.return_value = np.array(
             [[1, 2, 3], [4, 5, 6]])
         self.client.get_reference_samples.return_value = np.array([0.5, 1.0])
-        self.client.get_samples.return_value = np.array([0.1, 0.2, 0.3, 0.4])
+
+        def get_samples(x):
+            samples = np.ones(len(x))
+            samples[::2] = 0.5
+            return samples
+
+        self.client.get_samples.side_effect = get_samples
         self.recorder = self.create_recorder()
         self.recorder.init(3 * [[-10, 10]])
 
@@ -58,7 +64,11 @@ class TestGeneralRecorder(object):
             self.client.get_samples.call_args_list[0][0][0],
             self.recorder.gt_locations)
         assert_equal(
-            self.recorder.gt_samples, self.client.get_samples.return_value)
+            self.recorder.gt_samples[::2],
+            len(self.recorder.gt_locations) / 2 * [0.5])
+        assert_equal(
+            self.recorder.gt_samples[1::2],
+            len(self.recorder.gt_locations) / 2 * [1.0])
 
 
 class TestTaskPlumeRecorder(TestGeneralRecorder):
@@ -93,6 +103,24 @@ class TestTaskPlumeRecorder(TestGeneralRecorder):
         assert_equal(
             self.recorder.rewards,
             steps * [self.client.get_reward.return_value])
+
+    def test_records_rmse(self):
+        steps = 4
+        self.predictor.trained = True
+        self.predictor.predict.side_effect = lambda x: np.ones(len(x))
+        for i in xrange(steps):
+            self.recorder.record()
+        assert_almost_equal(
+            self.recorder.rmse, steps * [np.sqrt(0.5 ** 2 / 2)])
+
+    def test_records_wrmse(self):
+        steps = 4
+        self.predictor.trained = True
+        self.predictor.predict.side_effect = lambda x: np.zeros(len(x))
+        for i in xrange(steps):
+            self.recorder.record()
+        assert_almost_equal(
+            self.recorder.wrmse, steps * [0.75])
 
 
 class TestControlsRecorder(object):

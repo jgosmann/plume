@@ -91,13 +91,27 @@ class TaskPlumeRecorder(GeneralRecorder):
             self.fileh.root, 'rewards', tables.FloatAtom(), (0,),
             expectedrows=self.expected_steps,
             title='Total reward in each timestep.')
+        self._rmse = self.fileh.create_earray(
+            self.fileh.root, 'rmse', tables.FloatAtom(), (0,),
+            expectedrows=self.expected_steps,
+            title='Root mean square error in each time step.')
+        self._wrmse = self.fileh.create_earray(
+            self.fileh.root, 'wrmse', tables.FloatAtom(), (0,),
+            expectedrows=self.expected_steps,
+            title='Weighted root mean square error in each time step.')
+        self._max_gt_value = self.gt_samples.max()
 
     def record(self):
         GeneralRecorder.record(self)
+        self._record_plume_measurement()
+        self._record_reward()
+        self._record_xrmse()
 
+    def _record_plume_measurement(self):
         measurement = np.atleast_2d(self.client.get_plume_sensor_outputs()).T
         self._plume_measurements.append(measurement)
 
+    def _record_reward(self):
         if self.predictor.trained:
             samples = np.maximum(0, self.predictor.predict(self._locations))
         else:
@@ -108,8 +122,20 @@ class TaskPlumeRecorder(GeneralRecorder):
             reward, samples.min(), samples.max()))
         self._rewards.append([reward])
 
+    def _record_xrmse(self):
+        if self.predictor.trained:
+            samples = np.maximum(0, self.predictor.predict(self.gt_locations))
+        else:
+            samples = np.zeros(len(self.gt_samples))
+        se = (samples - self.gt_samples) ** 2
+        wse = se * self.gt_samples / self._max_gt_value
+        self._rmse.append([np.sqrt(np.sum(se) / len(samples))])
+        self._wrmse.append([np.sqrt(np.sum(wse) / len(samples))])
+
     plume_measurements = property(lambda self: self._plume_measurements.read())
     rewards = property(lambda self: self._rewards.read())
+    rmse = property(lambda self: self._rmse.read())
+    wrmse = property(lambda self: self._wrmse.read())
 
 
 class ControlsRecorder(object):
