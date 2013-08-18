@@ -89,6 +89,9 @@ class RBFKernel(object):
             return res
 
     def diag(self, x1, x2):
+        if x1 is x2:
+            return self.variance * np.ones(len(x1))
+
         x1 = x1 / self.lengthscale
         x2 = x2 / self.lengthscale
         d = -2 * np.einsum('ij,ij->i', x1, x2) + (
