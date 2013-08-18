@@ -215,7 +215,7 @@ class PDUCB(UCBBased):
             'epsilon=%(epsilon)r, ' \
             'target_precision=%(target_precision)r)' % self.__dict__
 
-    def calc_neg_ducb(self, x, noisy_states):
+    def calc_neg_ucb(self, x, noisy_states):
         x = np.atleast_2d(x)
         pos = np.atleast_2d(noisy_states[0].position)
         pred, pred_derivative, mse, mse_derivative = self.predictor.predict(
