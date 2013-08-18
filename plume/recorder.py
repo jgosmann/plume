@@ -13,7 +13,7 @@ class GeneralRecorder(object):
         self.client = client
         self.expected_steps = None
 
-    def init(self):
+    def init(self, area):
         self._positions = self.fileh.create_earray(
             self.fileh.root, 'positions', tables.FloatAtom(),
             (self.client.numUAVs, 0, 3), expectedrows=self.expected_steps,
@@ -24,9 +24,22 @@ class GeneralRecorder(object):
             title='Locations where prediction was requested '
             '(num locations x 3)')
         self.fileh.create_array(
-            self.fileh.root, 'ground_truth',
+            self.fileh.root, 'reference_samples',
             np.asarray(self.client.get_reference_samples()),
-            title='True plume values (num locations)')
+            title='Reference samples (num locations)')
+
+        ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
+            area, [20, 20, 10])]
+        x, y, z = (np.rollaxis(m, 1) for m in np.meshgrid(*ogrid))
+        locations = np.column_stack((x.flat, y.flat, z.flat))
+        self.fileh.create_array(
+            self.fileh.root, 'gt_locations', locations,
+            title='Locations where ground truth was evaluated '
+            '(num locations x 3)')
+        self.fileh.create_array(
+            self.fileh.root, 'gt_samples',
+            np.asarray(self.client.get_samples(locations)),
+            title='Ground truth samples (num locations)')
 
     def record(self):
         self._positions.append(
@@ -36,7 +49,11 @@ class GeneralRecorder(object):
     sample_locations = property(
         lambda self: self.fileh.root.sample_locations.read())
     reference_samples = property(
-        lambda self: self.fileh.root.ground_truth.read())
+        lambda self: self.fileh.root.reference_samples.read())
+    gt_locations = property(
+        lambda self: self.fileh.root.gt_locations.read())
+    gt_samples = property(
+        lambda self: self.fileh.root.gt_samples.read())
 
 
 class TargetsRecorder(object):
@@ -63,8 +80,8 @@ class TaskPlumeRecorder(GeneralRecorder):
         GeneralRecorder.__init__(self, fileh, client, expected_steps)
         self.predictor = predictor
 
-    def init(self):
-        GeneralRecorder.init(self)
+    def init(self, area):
+        GeneralRecorder.init(self, area)
         self._locations = self.client.get_locations()
         self._plume_measurements = self.fileh.create_earray(
             self.fileh.root, 'plume_measurements', tables.FloatAtom(),

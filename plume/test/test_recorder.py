@@ -22,8 +22,9 @@ class TestGeneralRecorder(object):
         self.client.get_locations.return_value = np.array(
             [[1, 2, 3], [4, 5, 6]])
         self.client.get_reference_samples.return_value = np.array([0.5, 1.0])
+        self.client.get_samples.return_value = np.array([0.1, 0.2, 0.3, 0.4])
         self.recorder = self.create_recorder()
-        self.recorder.init()
+        self.recorder.init(3 * [[-10, 10]])
 
     def tearDown(self):
         self.fileh.close()
@@ -49,6 +50,15 @@ class TestGeneralRecorder(object):
         assert_equal(
             self.recorder.reference_samples,
             self.client.get_reference_samples.return_value)
+
+    def test_records_ground_truth(self):
+        assert_that(len(self.client.get_samples.call_args_list), is_(1))
+        assert_that(len(self.client.get_samples.call_args_list[0]), is_(2))
+        assert_equal(
+            self.client.get_samples.call_args_list[0][0][0],
+            self.recorder.gt_locations)
+        assert_equal(
+            self.recorder.gt_samples, self.client.get_samples.return_value)
 
 
 class TestTaskPlumeRecorder(TestGeneralRecorder):
