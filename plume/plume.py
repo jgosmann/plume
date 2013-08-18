@@ -99,7 +99,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logging.basicConfig()
-    logger.setLevel(logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
 
     conf = load_config(args.config[0])
 
