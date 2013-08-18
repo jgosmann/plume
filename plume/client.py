@@ -20,3 +20,6 @@ class TaskPlumeClient(TCPClient):
 
     def get_reward(self):
         return self.rpc('TASK', 'reward')[0]
+
+    def get_samples(self, locations):
+        return self.rpc('TASK', 'getSamples', locations.flat)
