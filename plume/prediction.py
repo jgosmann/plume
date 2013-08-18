@@ -1,6 +1,6 @@
 import GPy as gpy
 import numpy as np
-from numpy.linalg import inv
+from numpy.linalg import cholesky, inv
 
 from npwrap import GrowingArray, Growing2dArray
 
@@ -158,9 +158,10 @@ class OnlineGP(object):
 
         l = len(self.K_inv.data)
         self.K_inv.enlarge_by(len(x))
-        self.K_inv.data[l:, l:] = inv(
+        L = inv(cholesky(
             self.kernel(x, x) + np.eye(len(x)) * self.noise_var -
-            np.dot(K_obs, projected))
+            np.dot(K_obs, projected)))
+        self.K_inv.data[l:, l:] = np.dot(L.T, L)
         f22_inv = self.K_inv.data[l:, l:]
         f21 = np.dot(projected, f22_inv)
         self.K_inv.data[:l, l:] = -f21
