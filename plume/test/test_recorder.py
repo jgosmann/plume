@@ -54,6 +54,8 @@ class TestGeneralRecorder(object):
 class TestTaskPlumeRecorder(TestGeneralRecorder):
     def setUp(self):
         self.predictor = MagicMock()
+        self.predictor.trained = False
+        self.predictor.predict.side_effect = lambda x: np.empty(len(x))
         TestGeneralRecorder.setUp(self)
         self.client.get_plume_sensor_outputs.return_value = range(
             self.client.numUAVs)
@@ -80,7 +82,7 @@ class TestTaskPlumeRecorder(TestGeneralRecorder):
             *expected_calls))
         assert_equal(
             self.recorder.rewards,
-            [-np.inf] + (steps - 1) * [self.client.get_reward.return_value])
+            steps * [self.client.get_reward.return_value])
 
 
 class TestControlsRecorder(object):
