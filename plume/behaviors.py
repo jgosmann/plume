@@ -159,19 +159,6 @@ class DUCBLike(object):
                 args=(noisy_states,),
                 method='L-BFGS-B', jac=True, bounds=self.get_effective_area())
 
-            #pred, mse, (x, y, z) = predict_on_volume(
-                #self.predictor, self.get_effective_area(),
-                #self.grid_resolution)
-            #dist = np.apply_along_axis(
-                #norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
-                #self.positions.data[-1]).reshape(x.shape)
-            #ducb = np.log(pred + self.epsilon) + self.kappa * np.sqrt(mse) + \
-                #self.gamma * dist ** 2
-            #wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
-            #opt = [x[wp_idx], y[wp_idx], z[wp_idx]]
-
-            #print(res.x, opt)
-            #print(self.calc_ducb(res.x, noisy_states), self.calc_ducb(opt, noisy_states))
             self.targets = np.array(len(noisy_states) * [res.x])
 
         return self._controller.get_controls(noisy_states, self.targets)
