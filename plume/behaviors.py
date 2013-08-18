@@ -229,28 +229,3 @@ class PDUCB(UCBBased):
             self.kappa * mse_derivative * 0.5 / np.sqrt(mse) + \
             self.gamma * 2 * np.sqrt(sq_dist)
         return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
-
-
-class MDUCB(UCBBased):
-    def __init__(
-            self, margin, predictor, grid_resolution, area, kappa, gamma,
-            epsilon, target_precision, duration_in_steps=1000):
-        super(MDUCB, self).__init__(
-            margin, predictor, grid_resolution, area, target_precision,
-            duration_in_steps)
-        self.kappa = kappa
-        self.gamma = gamma
-        self.epsilon = epsilon
-
-    def __repr__(self):
-        return self.__class__.__name__ + '(margin=%(margin)r, ' \
-            'predictor=%(predictor)r, grid_resolution=%(grid_resolution)r, ' \
-            'area=%(area)r, kappa=%(kappa)r, gamma=%(gamma)r, ' \
-            'epsilon=%(epsilon)r, ' \
-            'target_precision=%(target_precision)r)' % self.__dict__
-
-    def calc_ducb(self, pred, mse, dist):
-        # FIXME implement derivative
-        return np.log(pred + self.epsilon) + \
-            self.kappa * np.log(np.sqrt(mse) + self.epsilon) + \
-            self.gamma * dist ** 2
