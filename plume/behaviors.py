@@ -112,7 +112,7 @@ class ToMaxVariance(object):
         return self.area + np.array([self.margin, -self.margin])
 
 
-class DUCBLike(object):
+class UCBBased(object):
     def __init__(
             self, margin, predictor, grid_resolution, area, target_precision,
             duration_in_steps=1000):
@@ -153,10 +153,9 @@ class DUCBLike(object):
             self.last_prediction_update = self.step
 
             res = minimize(
-                lambda x, s: self.calc_ducb(x, s), noisy_states[0].position,
-                args=(noisy_states,),
-                method='L-BFGS-B', jac=True, bounds=self.get_effective_area())
-
+                lambda x, s: self.calc_neg_ucb(x, s), noisy_states[0].position,
+                args=(noisy_states,), method='L-BFGS-B', jac=True,
+                bounds=self.get_effective_area())
             self.targets = np.array(len(noisy_states) * [res.x])
 
         return self._controller.get_controls(noisy_states, self.targets)
@@ -164,11 +163,11 @@ class DUCBLike(object):
     def get_effective_area(self):
         return self.area + np.array([self.margin, -self.margin])
 
-    def calc_ducb(self, x, noisy_states):
+    def calc_neg_ucb(self, x, noisy_states):
         raise NotImplementedError()
 
 
-class DUCB(DUCBLike):
+class DUCB(UCBBased):
     def __init__(
             self, margin, predictor, grid_resolution, area, kappa, gamma,
             target_precision, duration_in_steps=1000):
@@ -184,12 +183,21 @@ class DUCB(DUCBLike):
             'area=%(area)r, kappa=%(kappa)r, gamma=%(gamma)r, ' \
             'target_precision=%(target_precision)r)' % self.__dict__
 
-    def calc_ducb(self, pred, mse, dist):
-        # FIXME implement derivative
-        return pred + self.kappa * mse + self.gamma * dist
+    def calc_neg_ducb(self, x, noisy_states):
+        x = np.atleast_2d(x)
+        pos = np.atleast_2d(noisy_states[0].position)
+        pred, pred_derivative, mse, mse_derivative = self.predictor.predict(
+            x, eval_MSE=True, eval_derivatives=True)
+        dist = np.sqrt(-2 * np.dot(x, pos.T) + (
+            np.sum(np.square(x), 1)[:, None] +
+            np.sum(np.square(pos), 1)[None, :]))
+        ucb = pred + self.kappa * mse + self.gamma * dist
+        ucb_derivative = pred_derivative + self.kappa * mse_derivative + \
+            self.gamma * (x - pos) / dist
+        return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
 
 
-class PDUCB(DUCBLike):
+class PDUCB(UCBBased):
     def __init__(
             self, margin, predictor, grid_resolution, area, kappa, gamma,
             epsilon, target_precision, duration_in_steps=1000):
@@ -207,7 +215,7 @@ class PDUCB(DUCBLike):
             'epsilon=%(epsilon)r, ' \
             'target_precision=%(target_precision)r)' % self.__dict__
 
-    def calc_ducb(self, x, noisy_states):
+    def calc_neg_ducb(self, x, noisy_states):
         x = np.atleast_2d(x)
         pos = np.atleast_2d(noisy_states[0].position)
         pred, pred_derivative, mse, mse_derivative = self.predictor.predict(
@@ -215,16 +223,15 @@ class PDUCB(DUCBLike):
         sq_dist = -2 * np.dot(x, pos.T) + (
             np.sum(np.square(x), 1)[:, None] +
             np.sum(np.square(pos), 1)[None, :])
-        ucb = np.log(np.maximum(0, pred) + self.epsilon) + self.kappa * np.sqrt(mse) + \
-            self.gamma * sq_dist
+        ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
+            self.kappa * np.sqrt(mse) + self.gamma * sq_dist
         ucb_derivative = pred_derivative / (pred + self.epsilon) + \
             self.kappa * mse_derivative * 0.5 / np.sqrt(mse) + \
             self.gamma * 2 * np.sqrt(sq_dist)
-        # FIXME neg ucb is not clear from function name
         return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
 
 
-class MDUCB(DUCBLike):
+class MDUCB(UCBBased):
     def __init__(
             self, margin, predictor, grid_resolution, area, kappa, gamma,
             epsilon, target_precision, duration_in_steps=1000):
