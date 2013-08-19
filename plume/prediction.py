@@ -164,19 +164,37 @@ class OnlineGP(object):
         # environmental surveillance, 5490-5497.
         # for example.
         K_obs = self.kernel(x, self.x_train.data)
+        #print(np.abs(self.K_inv.data - self.K_inv.data.T).max())
+        #old_L = cholesky(self.K_inv.data)
+        #A = np.dot(K_obs, old_L)
         projected = np.dot(self.K_inv.data, K_obs.T)
 
         l = len(self.K_inv.data)
         self.K_inv.enlarge_by(len(x))
-        L = inv(cholesky(
-            self.kernel(x, x) + np.eye(len(x)) * self.noise_var -
-            np.dot(K_obs, projected)))
+        #Z = self.kernel(x, x) + np.eye(len(x)) * self.noise_var - np.dot(A, A.T)
+        Z = self.kernel(x, x) + np.eye(len(x)) * self.noise_var - \
+            np.dot(K_obs, projected)
+        indices = np.diag_indices_from(Z)
+        Z[indices] = np.maximum(self.noise_var, Z[indices])
+        #print(Z, np.dot(np.ones(len(Z)), np.dot(Z, np.ones(len(Z)))))
+        L = inv(cholesky(Z))
+        #L = inv(cholesky(
+            #self.kernel(x, x) + np.eye(len(x)) * self.noise_var -
+            #np.dot(K_obs, projected)))
+        #L = inv(cholesky(
+            #self.kernel(x, x) + np.eye(len(x)) * self.noise_var -
+            #np.dot(A, A.T)))
         self.K_inv.data[l:, l:] = np.dot(L.T, L)
-        f22_inv = self.K_inv.data[l:, l:]
-        f21 = np.dot(projected, f22_inv)
+        W = np.dot(projected, L.T)
+
+        #f22_inv = self.K_inv.data[l:, l:]
+        #f21 = np.dot(projected, f22_inv)
+        f21 = np.dot(W, L)
         self.K_inv.data[:l, l:] = -f21
         self.K_inv.data[l:, :l] = -f21.T
-        self.K_inv.data[:l, :l] += np.dot(f21, projected.T)
+
+        #self.K_inv.data[:l, :l] += np.dot(f21, projected.T)
+        self.K_inv.data[:l, :l] += np.dot(W, W.T)
 
         self.x_train.extend(x)
         self.y_train.extend(y)
