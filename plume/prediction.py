@@ -106,17 +106,17 @@ class OnlineGP(object):
         self.expected_samples = expected_samples
         self.x_train = None
         self.y_train = None
-        self.K_inv = None
+        self.L_inv = None
         self.trained = False
 
     def fit(self, x_train, y_train):
         self.x_train = self._create_data_array(np.asarray(x_train))
         self.y_train = self._create_data_array(np.asarray(y_train))
-        self.K_inv = Growing2dArray(expected_rows=self.expected_samples)
-        self.K_inv.enlarge_by(len(x_train))
-        self.K_inv.data[:] = inv(
+        self.L_inv = Growing2dArray(expected_rows=self.expected_samples)
+        self.L_inv.enlarge_by(len(x_train))
+        self.L_inv.data[:] = inv(cholesky(
             self.kernel(self.x_train.data, self.x_train.data) +
-            np.eye(len(self.x_train.data)) * self.noise_var)
+            np.eye(len(self.x_train.data)) * self.noise_var))
         self.trained = True
 
     def _create_data_array(self, initial_data):
@@ -132,10 +132,11 @@ class OnlineGP(object):
         else:
             K_new_vs_old = self.kernel(x, self.x_train.data)
 
-        svs = np.dot(self.K_inv.data, self.y_train.data)
+        K_inv = np.dot(self.L_inv.data.T, self.L_inv.data)
+        svs = np.dot(K_inv, self.y_train.data)
         pred = np.dot(K_new_vs_old, svs)
         if eval_MSE:
-            mse_svs = np.dot(self.K_inv.data, K_new_vs_old.T)
+            mse_svs = np.dot(K_inv, K_new_vs_old.T)
             mse = self.noise_var + self.kernel.diag(x, x) - np.einsum(
                 'ij,ji->i', K_new_vs_old, mse_svs)
 
@@ -157,6 +158,7 @@ class OnlineGP(object):
         if not self.trained:
             self.fit(x, y)
             return
+        print(self.L_inv.data)
 
         # The equations used here are stated in
         # Singh, A., Ramos, F., Whyte, H. D., & Kaiser, W. J. (2010).
@@ -164,40 +166,41 @@ class OnlineGP(object):
         # environmental surveillance, 5490-5497.
         # for example.
         K_obs = self.kernel(x, self.x_train.data)
-        #print(np.abs(self.K_inv.data - self.K_inv.data.T).max())
-        #old_L = cholesky(self.K_inv.data)
-        #A = np.dot(K_obs, old_L)
-        projected = np.dot(self.K_inv.data, K_obs.T)
+        Z = np.dot(K_obs, self.L_inv.data.T)
 
-        l = len(self.K_inv.data)
-        self.K_inv.enlarge_by(len(x))
-        #Z = self.kernel(x, x) + np.eye(len(x)) * self.noise_var - np.dot(A, A.T)
-        Z = self.kernel(x, x) + np.eye(len(x)) * self.noise_var - \
-            np.dot(K_obs, projected)
-        indices = np.diag_indices_from(Z)
-        Z[indices] = np.maximum(self.noise_var, Z[indices])
+        f22 = self.kernel(x, x) + np.eye(len(x)) * self.noise_var - \
+            np.dot(Z, Z.T)
+        #indices = np.diag_indices_from(Z)
+        #Z[indices] = np.maximum(self.noise_var, Z[indices])
         #print(Z, np.dot(np.ones(len(Z)), np.dot(Z, np.ones(len(Z)))))
-        L = inv(cholesky(Z))
-        #L = inv(cholesky(
-            #self.kernel(x, x) + np.eye(len(x)) * self.noise_var -
-            #np.dot(K_obs, projected)))
-        #L = inv(cholesky(
-            #self.kernel(x, x) + np.eye(len(x)) * self.noise_var -
-            #np.dot(A, A.T)))
-        self.K_inv.data[l:, l:] = np.dot(L.T, L)
-        W = np.dot(projected, L.T)
+        f22_inv_l = inv(cholesky(f22)).T
+        Q = np.dot(Z, self.L_inv.data)
+        P = np.dot(Q.T, f22_inv_l)
+        A = cholesky(
+            np.dot(self.L_inv.data.T, self.L_inv.data) + np.dot(P, P.T))
+        B = -np.dot(np.dot(P, f22_inv_l.T).T, inv(A))
+        C = cholesky(np.dot(f22_inv_l, f22_inv_l.T) - np.dot(B, B.T))
 
-        #f22_inv = self.K_inv.data[l:, l:]
-        #f21 = np.dot(projected, f22_inv)
-        f21 = np.dot(W, L)
-        self.K_inv.data[:l, l:] = -f21
-        self.K_inv.data[l:, :l] = -f21.T
-
-        #self.K_inv.data[:l, :l] += np.dot(f21, projected.T)
-        self.K_inv.data[:l, :l] += np.dot(W, W.T)
+        l = len(self.L_inv.data)
+        self.L_inv.enlarge_by(len(x))
+        self.L_inv.data[:l, :l] = A
+        self.L_inv.data[l:, :l] = B
+        self.L_inv.data[l:, l:] = C
 
         self.x_train.extend(x)
         self.y_train.extend(y)
+
+        #K_inv = inv(cholesky(
+            #self.kernel(self.x_train.data, self.x_train.data) +
+            #np.eye(len(self.x_train.data)) * self.noise_var))
+        #print(K_inv)
+        #print(self.L_inv.data)
+        #K_inv = inv(cholesky(
+            #self.kernel(self.x_train.data, self.x_train.data) +
+            #np.eye(len(self.x_train.data)) * self.noise_var))
+        #print(K_inv)
+        #print(A)
+        print('')
 
 
 def predict_on_volume(predictor, area, grid_resolution):
