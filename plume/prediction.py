@@ -124,6 +124,7 @@ class OnlineGP(object):
         self.L_inv.data[:] = inv(self._jitter_cholesky(
             self.kernel(self.x_train.data, self.x_train.data) +
             np.eye(len(self.x_train.data)) * self.noise_var))
+        self.K_inv = np.dot(self.L_inv.data.T, self.L_inv.data)
         self.trained = True
 
     def _create_data_array(self, initial_data):
@@ -139,11 +140,10 @@ class OnlineGP(object):
         else:
             K_new_vs_old = self.kernel(x, self.x_train.data)
 
-        K_inv = np.dot(self.L_inv.data.T, self.L_inv.data)
-        svs = np.dot(K_inv, self.y_train.data)
+        svs = np.dot(self.K_inv, self.y_train.data)
         pred = np.dot(K_new_vs_old, svs)
         if eval_MSE:
-            mse_svs = np.dot(K_inv, K_new_vs_old.T)
+            mse_svs = np.dot(self.K_inv, K_new_vs_old.T)
             mse = np.maximum(
                 self.noise_var,
                 self.noise_var + self.kernel.diag(x, x) - np.einsum(
@@ -192,6 +192,7 @@ class OnlineGP(object):
         self.L_inv.data[l:, :l] = -np.dot(
             np.dot(C_inv, B), self.L_inv.data[:l, :l])
         self.L_inv.data[l:, l:] = C_inv
+        self.K_inv = np.dot(self.L_inv.data.T, self.L_inv.data)
 
     def _jitter_cholesky(self, A):
         try:
