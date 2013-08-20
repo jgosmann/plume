@@ -144,8 +144,10 @@ class OnlineGP(object):
         pred = np.dot(K_new_vs_old, svs)
         if eval_MSE:
             mse_svs = np.dot(K_inv, K_new_vs_old.T)
-            mse = self.noise_var + self.kernel.diag(x, x) - np.einsum(
-                'ij,ji->i', K_new_vs_old, mse_svs)
+            mse = np.maximum(
+                self.noise_var,
+                self.noise_var + self.kernel.diag(x, x) - np.einsum(
+                    'ij,ji->i', K_new_vs_old, mse_svs))
 
         if eval_derivatives:
             pred_derivative = np.einsum(
