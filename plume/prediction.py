@@ -1,6 +1,8 @@
+import warnings
+
 import GPy as gpy
 import numpy as np
-from numpy.linalg import cholesky, inv
+from numpy.linalg import cholesky, inv, linalg
 
 from npwrap import GrowingArray, Growing2dArray
 
@@ -108,13 +110,18 @@ class OnlineGP(object):
         self.y_train = None
         self.L_inv = None
         self.trained = False
+        self.min_rel_jitter = 1e-10
+        self.max_rel_jitter = 1e-6
 
     def fit(self, x_train, y_train):
         self.x_train = self._create_data_array(np.asarray(x_train))
         self.y_train = self._create_data_array(np.asarray(y_train))
         self.L_inv = Growing2dArray(expected_rows=self.expected_samples)
-        self.L_inv.enlarge_by(len(x_train))
-        self.L_inv.data[:] = inv(cholesky(
+        self._refit()
+
+    def _refit(self):
+        self.L_inv.enlarge_by(len(self.x_train.data) - len(self.L_inv.data))
+        self.L_inv.data[:] = inv(self._jitter_cholesky(
             self.kernel(self.x_train.data, self.x_train.data) +
             np.eye(len(self.x_train.data)) * self.noise_var))
         self.trained = True
@@ -158,49 +165,54 @@ class OnlineGP(object):
         if not self.trained:
             self.fit(x, y)
             return
-        print(self.L_inv.data)
 
-        # The equations used here are stated in
-        # Singh, A., Ramos, F., Whyte, H. D., & Kaiser, W. J. (2010).
-        # Modeling and decision making in spatio-temporal processes for
-        # environmental surveillance, 5490-5497.
-        # for example.
         K_obs = self.kernel(x, self.x_train.data)
-        Z = np.dot(K_obs, self.L_inv.data.T)
-
-        f22 = self.kernel(x, x) + np.eye(len(x)) * self.noise_var - \
-            np.dot(Z, Z.T)
-        #indices = np.diag_indices_from(Z)
-        #Z[indices] = np.maximum(self.noise_var, Z[indices])
-        #print(Z, np.dot(np.ones(len(Z)), np.dot(Z, np.ones(len(Z)))))
-        f22_inv_l = inv(cholesky(f22)).T
-        Q = np.dot(Z, self.L_inv.data)
-        P = np.dot(Q.T, f22_inv_l)
-        A = cholesky(
-            np.dot(self.L_inv.data.T, self.L_inv.data) + np.dot(P, P.T))
-        B = -np.dot(np.dot(P, f22_inv_l.T).T, inv(A))
-        C = cholesky(np.dot(f22_inv_l, f22_inv_l.T) - np.dot(B, B.T))
-
-        l = len(self.L_inv.data)
-        self.L_inv.enlarge_by(len(x))
-        self.L_inv.data[:l, :l] = A
-        self.L_inv.data[l:, :l] = B
-        self.L_inv.data[l:, l:] = C
+        B = np.dot(K_obs, self.L_inv.data.T)
+        CC_T = self.kernel(x, x) + np.eye(len(x)) * self.noise_var - \
+            np.dot(B, B.T)
+        diag_indices = np.diag_indices_from(CC_T)
+        CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
 
         self.x_train.extend(x)
         self.y_train.extend(y)
 
-        #K_inv = inv(cholesky(
-            #self.kernel(self.x_train.data, self.x_train.data) +
-            #np.eye(len(self.x_train.data)) * self.noise_var))
-        #print(K_inv)
-        #print(self.L_inv.data)
-        #K_inv = inv(cholesky(
-            #self.kernel(self.x_train.data, self.x_train.data) +
-            #np.eye(len(self.x_train.data)) * self.noise_var))
-        #print(K_inv)
-        #print(A)
-        print('')
+        try:
+            C_inv = inv(cholesky(CC_T))
+        except linalg.LinAlgError:
+            warnings.warn(
+                'New submatrix of covariance matrix singular. '
+                'Retraining on all data.', NumericalStabilityWarning)
+            self._refit()
+            return
+
+        l = len(self.L_inv.data)
+        self.L_inv.enlarge_by(len(x))
+        self.L_inv.data[l:, :l] = -np.dot(
+            np.dot(C_inv, B), self.L_inv.data[:l, :l])
+        self.L_inv.data[l:, l:] = C_inv
+
+    def _jitter_cholesky(self, A):
+        try:
+            return cholesky(A)
+        except linalg.LinAlgError:
+            magnitude = np.mean(np.diag(A))
+            max_jitter = self.max_rel_jitter * magnitude
+            jitter = self.min_rel_jitter * magnitude
+            while jitter <= max_jitter:
+                try:
+                    L = cholesky(A + np.eye(A.shape[0]) * jitter)
+                    warnings.warn(
+                        'Added jitter of %f.' % jitter,
+                        NumericalStabilityWarning)
+                    return L
+                except linalg.LinAlgError:
+                    print jitter
+                    jitter *= 10.0
+        raise linalg.LinAlgError('Singular matrix despite jitter.')
+
+
+class NumericalStabilityWarning(RuntimeWarning):
+    pass
 
 
 def predict_on_volume(predictor, area, grid_resolution):
