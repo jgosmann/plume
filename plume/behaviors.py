@@ -152,8 +152,17 @@ class UCBBased(object):
                 self.plume_measurements.data[self.last_prediction_update:])
             self.last_prediction_update = self.step
 
+            ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
+                self.get_effective_area(), [5, 5, 5])]
+            x, y, z = (np.rollaxis(m, 1) for m in np.meshgrid(*ogrid))
+            ducb, unused = self.calc_neg_ucb(
+                np.column_stack((x.flat, y.flat, z.flat)), noisy_states)
+            ducb *= -1
+            wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
+            xs = np.array([x[wp_idx], y[wp_idx], z[wp_idx]])
+
             res = minimize(
-                lambda x, s: self.calc_neg_ucb(x, s), noisy_states[0].position,
+                lambda x, s: self.calc_neg_ucb(x, s), xs,
                 args=(noisy_states,), method='L-BFGS-B', jac=True,
                 bounds=self.get_effective_area())
             self.targets = np.array(len(noisy_states) * [res.x])
