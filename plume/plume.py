@@ -21,11 +21,8 @@ class Controller(object):
         self.client = client
         self.movement_behavior = movement_behavior
         self.recorders = []
-        self._initialized = False
 
     def add_recorder(self, recorder):
-        if self._initialized:
-            recorder.init()
         self.recorders.append(recorder)
 
     def init_new_sim(self, seed):
@@ -33,9 +30,6 @@ class Controller(object):
         self.client.reset()
         # Ensure that all simulator variables have been set
         self.step_keeping_position()
-        for recorder in self.recorders:
-            recorder.init()
-        self._initialized = True
 
     def run(self, num_steps):
         for step in xrange(num_steps):
@@ -67,16 +61,18 @@ def do_simulation_run(i, output_filename, conf, client):
 
         client = ControlsRecorder(fileh, client, num_steps)
         controller = Controller(client, conf['behavior'])
+        controller.init_new_sim(conf['seedlist'][i])
 
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
+        recorder.init(conf['global_conf']['area'])
         controller.add_recorder(recorder)
 
         if hasattr(conf['behavior'], 'targets'):
             targets_recorder = TargetsRecorder(
                 fileh, conf['behavior'], client.numUAVs, num_steps)
+            targets_recorder.init()
             controller.add_recorder(targets_recorder)
 
-        controller.init_new_sim(conf['seedlist'][i])
         controller.run(num_steps)
 
 
