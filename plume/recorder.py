@@ -124,13 +124,14 @@ class TaskPlumeRecorder(GeneralRecorder):
 
     def _record_xrmse(self):
         if self.predictor.trained:
-            samples = np.maximum(0, self.predictor.predict(self.gt_locations))
+            samples = np.squeeze(
+                np.maximum(0, self.predictor.predict(self.gt_locations)))
         else:
             samples = np.zeros(len(self.gt_samples))
         se = (samples - self.gt_samples) ** 2
         wse = se * self.gt_samples / self._max_gt_value
-        self._rmse.append([np.sqrt(np.sum(se) / len(samples))])
-        self._wrmse.append([np.sqrt(np.sum(wse) / len(samples))])
+        self._rmse.append([np.sqrt(np.mean(se))])
+        self._wrmse.append([np.sqrt(np.mean(wse))])
 
     plume_measurements = property(lambda self: self._plume_measurements.read())
     rewards = property(lambda self: self._rewards.read())
