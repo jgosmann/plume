@@ -96,7 +96,6 @@ class RBFKernel(object):
         return self.variance * np.exp(-0.5 * d / self.lengthscale ** 2)
 
 
-# FIXME write tests
 class ExponentialKernel(object):
     def __init__(self, lengthscale, variance=1.0):
         self.lengthscale = lengthscale

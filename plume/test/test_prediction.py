@@ -3,7 +3,7 @@ import numpy as np
 from numpy.testing import assert_almost_equal
 
 import plume.prediction
-from plume.prediction import RBFKernel
+from plume.prediction import ExponentialKernel, RBFKernel
 
 
 class TestRBFKernel(object):
@@ -39,6 +39,42 @@ class TestRBFKernel(object):
         x2 = np.array([[1, 2, 3], [4, 2, 1]])
         expected = np.array([0.00072298179430063214, 2.7949898790590032e-06])
         actual = RBFKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
+        assert_almost_equal(actual, expected)
+
+
+class TestExponentialKernel(object):
+    def test_kernel(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([
+            [0.018052663641012889, 0.0038559231230571806],
+            [0.026755495010439296, 0.0050534602493140998]])
+        actual = ExponentialKernel(lengthscale=0.6, variance=0.75)(x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_kernel_derivative(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([
+            [[0.0, 0.02691132, 0.05382264],
+             [0.0121935, 0.0040645, 0.0]],
+            [[0.0, 0.0, 0.089184983368130993],
+             [0.016844867497713668, 0.0, 0.0]]])
+        unused, actual = ExponentialKernel(lengthscale=0.6, variance=0.75)(
+            x1, x2, eval_derivative=True)
+        assert_almost_equal(actual, expected)
+
+    def test_diag_symmetric(self):
+        x = np.array([[1, 1, 1], [1, 2, 1]])
+        expected = 0.75 * np.ones(2)
+        actual = ExponentialKernel(lengthscale=0.6, variance=0.75).diag(x, x)
+        assert_almost_equal(actual, expected)
+
+    def test_diag(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([0.018052663641012889, 0.0050534602493140998])
+        actual = ExponentialKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
         assert_almost_equal(actual, expected)
 
 
