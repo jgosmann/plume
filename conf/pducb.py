@@ -1,0 +1,29 @@
+import behaviors
+import prediction
+
+global_conf = {
+    'duration_in_steps': 1000,
+    'area': [[-140, 140], [-140, 140], [-80, 0]]
+}
+repeats = 1
+
+seedlist = [
+    142612519, 1697227051, 418162616, 2078398864, 173369639,
+    43785493, 41274965, 977868009,  788601892, 1856626226,
+    2127183363, 573233381, 851484452, 1165171137, 1155771934,
+    1065419701, 710551112, 540986725, 591642657, 713416342,
+    577910394, 1326096355, 1820819819, 21436141, 219779429,
+    1523504061, 1109833936, 2068461465, 877116277, 733511636,
+    303814995, 1451178889, 1111479433, 1095713870, 1243604952,
+    1637105932, 1184734207, 1983225747, 1870564744, 288781622,
+    655709180, 1772000704, 1042609825, 720966052, 1292095483,
+    776840730, 1450751032, 1785970451, 210791265, 1249102506]
+
+predictor = prediction.OnlineGP(
+    prediction.ExponentialKernel(30), 1e-10, global_conf['duration_in_steps'])
+behavior = behaviors.PDUCB(
+    margin=10, predictor=predictor, grid_resolution=[52, 52, 12],
+    kappa=69.5, gamma=-5e-6, epsilon=1e-30, target_precision=1,
+    **global_conf)
+
+task = 'TaskPlumeSingleSourceGaussianDefaultControls'
