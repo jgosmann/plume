@@ -12,5 +12,8 @@ if __name__ == '__main__':
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
         ax.plot(data.root.rewards)
+        ax.plot(-100 * data.root.rmse.read(), label='rmse')
+        ax.plot(-100 * data.root.wrmse.read(), label='wrmse')
+        plt.legend()
         plt.ioff()
         plt.show()
