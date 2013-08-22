@@ -2,7 +2,7 @@ import numpy as np
 from numpy.linalg import norm
 import numpy.random as rnd
 from qrsim.tcpclient import UAVControls
-from scipy.optimize import minimize
+from scipy.optimize import fmin_l_bfgs_b
 
 from datastructure import EnlargeableArray
 from prediction import predict_on_volume
@@ -161,11 +161,10 @@ class UCBBased(object):
             wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
             xs = np.array([x[wp_idx], y[wp_idx], z[wp_idx]])
 
-            res = minimize(
+            x, unused, unused = fmin_l_bfgs_b(
                 lambda x, s: self.calc_neg_ucb(x, s), xs,
-                args=(noisy_states,), method='L-BFGS-B', jac=True,
-                bounds=self.get_effective_area())
-            self.targets = np.array(len(noisy_states) * [res.x])
+                args=(noisy_states,), bounds=self.get_effective_area())
+            self.targets = np.array(len(noisy_states) * [x])
 
         return self._controller.get_controls(noisy_states, self.targets)
 
