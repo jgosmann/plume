@@ -243,8 +243,8 @@ class PlumeVisualizer(HasTraits):
             area, (20, 20, 20))]
         x, y, z = (np.rollaxis(m, 1) for m in np.meshgrid(*ogrid))
         values = griddata(
-            self.data.root.sample_locations.read(),
-            self.data.root.ground_truth.read(),
+            self.data.root.gt_locations.read(),
+            self.data.root.gt_samples.read(),
             np.column_stack((x.flat, y.flat, z.flat))).reshape(x.shape)
         self._truth_volume = self.plot_volume2(
             (x, y, z), values, 0.1, figure=self.truth.mayavi_scene)
