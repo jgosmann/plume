@@ -191,7 +191,7 @@ class DUCB(UCBBased):
         dist = np.sqrt(-2 * np.dot(x, pos.T) + (
             np.sum(np.square(x), 1)[:, None] +
             np.sum(np.square(pos), 1)[None, :]))
-        ucb = pred + self.kappa * mse + self.gamma * dist
+        ucb = pred + self.kappa * mse[:, None] + self.gamma * dist
         ucb_derivative = pred_derivative + self.kappa * mse_derivative + \
             self.gamma * (x - pos) / dist
         return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
@@ -220,12 +220,12 @@ class PDUCB(UCBBased):
         pos = np.atleast_2d(noisy_states[0].position)
         pred, pred_derivative, mse, mse_derivative = self.predictor.predict(
             x, eval_MSE=True, eval_derivatives=True)
-        sq_dist = -2 * np.dot(x, pos.T) + (
+        sq_dist = np.maximum(0, -2 * np.dot(x, pos.T) + (
             np.sum(np.square(x), 1)[:, None] +
-            np.sum(np.square(pos), 1)[None, :])
+            np.sum(np.square(pos), 1)[None, :]))
         ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
-            self.kappa * np.sqrt(mse) + self.gamma * sq_dist
+            self.kappa * np.sqrt(mse)[:, None] + self.gamma * sq_dist
         ucb_derivative = pred_derivative / (pred + self.epsilon) + \
-            self.kappa * mse_derivative * 0.5 / np.sqrt(mse) + \
+            self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
         return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
