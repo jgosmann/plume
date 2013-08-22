@@ -96,6 +96,32 @@ class RBFKernel(object):
         return self.variance * np.exp(-0.5 * d / self.lengthscale ** 2)
 
 
+# FIXME write tests
+class ExponentialKernel(object):
+    def __init__(self, lengthscale, variance=1.0):
+        self.lengthscale = lengthscale
+        self.variance = variance
+
+    def __call__(self, x1, x2, eval_derivative=False):
+        d = np.sqrt(-2 * np.dot(x1, x2.T) + (
+            np.sum(np.square(x1), 1)[:, None] +
+            np.sum(np.square(x2), 1)[None, :]))
+        res = self.variance * np.exp(-d / self.lengthscale)
+        if eval_derivative:
+            s = x1[:, None, :] - x2[None, :, :]
+            der = -2.0 / d[:, :, None] / self.lengthscale * s * res[:, :, None]
+            return res, der
+        else:
+            return res
+
+    def diag(self, x1, x2):
+        if x1 is x2:
+            return self.variance * np.ones(len(x1))
+
+        d = np.sqrt(np.sum((x1 - x2) ** 2, axis=1))
+        return self.variance * np.exp(-d / self.lengthscale)
+
+
 class OnlineGP(object):
     def __init__(self, kernel, noise_var=1.0, expected_samples=100):
         self.kernel = kernel
