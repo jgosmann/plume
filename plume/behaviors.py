@@ -160,41 +160,74 @@ class UCBBased(object):
             pred, mse, (x, y, z) = predict_on_volume(
                 self.predictor, self.get_effective_area(),
                 self.grid_resolution)
-            ducb = self.calc_neg_ucb(np.column_stack((x.flat, y.flat, z.flat)), noisy_states)
             dist = np.apply_along_axis(
                 norm, 1, np.column_stack((x.flat, y.flat, z.flat)) -
                 self.positions.data[-1]).reshape(x.shape)
-            #ducb = np.log(pred + self.epsilon) + self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
-            ucb = np.log(np.maximum(0, pred) + self.epsilon) + self.kappa * np.sqrt(mse) + \
-                self.gamma * dist ** 2
+            lp = np.log(pred + self.epsilon)
+            ducb = lp + self.kappa * np.sqrt(mse) + self.gamma * dist ** 2
+            #ducb = pred + self.kappa * mse + self.gamma * dist
+            #ucb = np.log(np.maximum(0, pred) + self.epsilon) + self.kappa * np.sqrt(mse) + \
+                #self.gamma * dist ** 2
 
             wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
-            print(-self.calc_ducb(res.x, noisy_states)[0], res.x,
-                  -self.calc_ducb(np.array([x[wp_idx], y[wp_idx], z[wp_idx]]), noisy_states)[0],
-                  [x[wp_idx], y[wp_idx], z[wp_idx]])
-            grad = -self.calc_ducb(res.x, noisy_states)[1]
-            print(grad)
+            zz = wp_idx[2]
             import matplotlib.pyplot as plt
             plt.figure()
+            #plt.clf()
             plt.subplot(2, 2, 1)
+            plt.title('DUCB')
             plt.imshow(
-                ducb[:, :, wp_idx[2]],
+                ducb[:, :, zz],
                 extent=self.get_effective_area()[:2].flatten(), origin='lower')
             plt.colorbar()
-            plt.scatter(y[wp_idx], x[wp_idx], color='g')
-            plt.scatter(res.x[1], res.x[0], color='r')
+            #plt.scatter(y[wp_idx], x[wp_idx], color='g')
+            plt.scatter(res.x[1], res.x[0], color='g')
+            plt.scatter(xs[1], xs[0], color='r')
             plt.scatter(noisy_states[0].y, noisy_states[0].x)
+
+            #x1 = np.array([x[wp_idx], y[wp_idx], z[wp_idx]])
+            #x1 = (x1 + np.array(noisy_states[0].position)) / 2
+            x1 = xs
+            ui, dd = self.calc_neg_ucb(x1, noisy_states)
+            dd *= 10 / norm(dd)
+            x2 = x1 + dd
+            plt.plot([x1[1], x2[1]], [x1[0], x2[0]])
+
+            plt.subplot(2, 2, 3)
+            plt.title('pred')
+            plt.imshow(
+                pred[:, :, zz],
+                extent=self.get_effective_area()[:2].flatten(), origin='lower')
+            plt.colorbar()
+            #plt.scatter(y[wp_idx], x[wp_idx], color='g')
+            plt.scatter(res.x[1], res.x[0], color='g')
+            plt.scatter(xs[1], xs[0], color='r')
+            plt.scatter(noisy_states[0].y, noisy_states[0].x)
+
+            #plt.subplot(2, 2, 4)
+            #plt.title('log pred')
+            #plt.imshow(
+                #lp[:, :, zz],
+                #extent=self.get_effective_area()[:2].flatten(), origin='lower')
+            #plt.colorbar()
+            ##plt.scatter(y[wp_idx], x[wp_idx], color='g')
+            #plt.scatter(res.x[1], res.x[0], color='g')
+            #plt.scatter(xs[1], xs[0], color='r')
+            #plt.scatter(noisy_states[0].y, noisy_states[0].x)
+
             plt.subplot(2, 2, 2)
-            res_idx = np.argmin(abs(z - res.x[2]))
+            plt.title('mse')
             plt.imshow(
-                ucb[:, :, res_idx],
+                mse[:, :, zz],
                 extent=self.get_effective_area()[:2].flatten(), origin='lower')
             plt.colorbar()
-            plt.scatter(y[wp_idx], x[wp_idx], color='g')
-            plt.scatter(res.x[1], res.x[0], color='r')
+            #plt.scatter(y[wp_idx], x[wp_idx], color='g')
+            plt.scatter(res.x[1], res.x[0], color='g')
+            plt.scatter(xs[1], xs[0], color='r')
             plt.scatter(noisy_states[0].y, noisy_states[0].x)
-            plt.plot([res.x[1], res.x[1] + grad[1]], [res.x[0], res.x[0] + grad[0]])
+
             plt.ioff()
+            #plt.draw()
             plt.show()
 
         return self._controller.get_controls(noisy_states, self.targets)
