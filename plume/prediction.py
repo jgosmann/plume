@@ -1,68 +1,9 @@
 import warnings
 
-import GPy as gpy
 import numpy as np
 from numpy.linalg import cholesky, inv, linalg
 
 from npwrap import GrowingArray, Growing2dArray
-
-
-class GPyAdapter(object):
-    def __init__(self, kernel_str, noise_variance, in_log_space=False):
-        self.kernel_str = kernel_str
-        self.kernel = eval(kernel_str)
-        self.in_log_space = in_log_space
-        self.noise_variance = noise_variance
-        self.X = None
-        self.y = None
-        self.trained = False
-
-    def fit(self, X, y):
-        self.X = np.asarray(X)
-        if hasattr(self, 'in_log_space') and self.in_log_space:
-            self.y = np.log(np.asarray(y))
-        else:
-            self.in_log_space = False
-            self.y = np.asarray(y)
-
-        if y.ndim == 1:
-            self.y = np.atleast_2d(self.y).T
-
-        self._refit_model()
-        self.trained = True
-
-    def add_observations(self, X, y):
-        if not self.trained:
-            self.fit(X, y)
-            return
-
-        self.X = np.append(self.X, X, axis=0)
-
-        if hasattr(self, 'in_log_space') and self.in_log_space:
-            y = np.log(np.asarray(y))
-        else:
-            y = np.asarray(y)
-        if y.ndim == 1:
-            y = np.atleast_2d(y).T
-        self.y = np.append(self.y, y, axis=0)
-
-        self._refit_model()
-
-    def _refit_model(self):
-        self.model = gpy.models.GPRegression(self.X, self.y, self.kernel)
-        self.model['noise_variance'] = self.noise_variance
-
-    def predict(self, X, eval_MSE=False):
-        pred, mse, lcb, ucb = self.model.predict(X)
-        if self.in_log_space:
-            pred = np.exp(pred)
-        if eval_MSE:
-            return pred, mse
-        else:
-            return pred
-
-    def __repr__(self):
-        return 'GPyAdapter(%s)' % self.kernel_str
 
 
 class RBFKernel(object):
