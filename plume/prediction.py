@@ -82,7 +82,7 @@ class RBFKernel(object):
         res = self.variance * np.exp(-0.5 * d / self.lengthscale ** 2)
         if eval_derivative:
             s = x1[:, None, :] - x2[None, :, :]
-            der = -1.0 / self.lengthscale * s * res[:, :, None]
+            der = -1.0 / (self.lengthscale ** 2) * s * res[:, :, None]
             return res, der
         else:
             return res
