@@ -76,16 +76,13 @@ class RBFKernel(object):
         If eval_derivative=True the derivative in x1 evaluated at the points in
         x1 will be returned.
         """
-        x1 = x1 / self.lengthscale
-        x2 = x2 / self.lengthscale
         d = -2 * np.dot(x1, x2.T) + (
             np.sum(np.square(x1), 1)[:, None] +
             np.sum(np.square(x2), 1)[None, :])
-        res = self.variance * np.exp(-0.5 * d)
+        res = self.variance * np.exp(-0.5 * d / self.lengthscale ** 2)
         if eval_derivative:
-            s = np.rollaxis(np.atleast_3d(x1) - np.atleast_3d(x2).T, 1, 3)
-            der = -self.variance / self.lengthscale * s * \
-                np.exp(-0.5 * d)[:, :, None]
+            s = x1[:, None, :] - x2[None, :, :]
+            der = -1.0 / self.lengthscale * s * res[:, :, None]
             return res, der
         else:
             return res
@@ -94,11 +91,9 @@ class RBFKernel(object):
         if x1 is x2:
             return self.variance * np.ones(len(x1))
 
-        x1 = x1 / self.lengthscale
-        x2 = x2 / self.lengthscale
         d = -2 * np.einsum('ij,ij->i', x1, x2) + (
             np.sum(np.square(x1), 1) + np.sum(np.square(x2), 1))
-        return self.variance * np.exp(-0.5 * d)
+        return self.variance * np.exp(-0.5 * d / self.lengthscale ** 2)
 
 
 class OnlineGP(object):
