@@ -5,6 +5,7 @@ from qrsim.tcpclient import UAVControls
 from scipy.optimize import fmin_l_bfgs_b
 
 from datastructure import EnlargeableArray
+from nputil import meshgrid_nd
 from prediction import predict_on_volume
 
 
@@ -154,7 +155,7 @@ class UCBBased(object):
 
             ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
                 self.get_effective_area(), [5, 5, 5])]
-            x, y, z = (np.rollaxis(m, 1) for m in np.meshgrid(*ogrid))
+            x, y, z = meshgrid_nd(*ogrid)
             ducb, unused = self.calc_neg_ucb(
                 np.column_stack((x.flat, y.flat, z.flat)), noisy_states)
             ducb *= -1

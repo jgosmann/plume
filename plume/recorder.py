@@ -4,6 +4,8 @@ from qrsim.tcpclient import ctrl_signal_dimensions, UAVControls
 import numpy as np
 import tables
 
+from nputil import meshgrid_nd
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +32,7 @@ class GeneralRecorder(object):
 
         ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
             area, [20, 20, 10])]
-        x, y, z = (np.rollaxis(m, 1) for m in np.meshgrid(*ogrid))
+        x, y, z = meshgrid_nd(*ogrid)
         locations = np.column_stack((x.flat, y.flat, z.flat))
         self.fileh.createArray(
             self.fileh.root, 'gt_locations', locations,

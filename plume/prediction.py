@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 from numpy.linalg import cholesky, inv, linalg
 
-from nputil import GrowingArray, Growing2dArray
+from nputil import GrowingArray, Growing2dArray, meshgrid_nd
 
 
 class RBFKernel(object):
@@ -182,7 +182,7 @@ class NumericalStabilityWarning(RuntimeWarning):
 def predict_on_volume(predictor, area, grid_resolution):
     ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
         area, grid_resolution)]
-    x, y, z = (np.rollaxis(m, 1) for m in np.meshgrid(*ogrid))
+    x, y, z = meshgrid_nd(*ogrid)
 
     pred, mse = predictor.predict(
         np.column_stack((x.flat, y.flat, z.flat)), eval_MSE=True)

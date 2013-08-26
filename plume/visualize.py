@@ -24,6 +24,7 @@ from tvtk.api import tvtk
 from tvtk.util.ctf import ColorTransferFunction, PiecewiseFunction, set_lut
 import vtk
 
+from nputil import meshgrid_nd
 from prediction import predict_on_volume
 
 
@@ -241,7 +242,7 @@ class PlumeVisualizer(HasTraits):
         area = self.conf['global_conf']['area']
         ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
             area, (20, 20, 20))]
-        x, y, z = (np.rollaxis(m, 1) for m in np.meshgrid(*ogrid))
+        x, y, z = meshgrid_nd(*ogrid)
         values = griddata(
             self.data.root.gt_locations.read(),
             self.data.root.gt_samples.read(),
