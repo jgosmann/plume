@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 from numpy.linalg import cholesky, inv, linalg
 
-from npwrap import GrowingArray, Growing2dArray
+from nputil import GrowingArray, Growing2dArray
 
 
 class RBFKernel(object):

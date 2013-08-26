@@ -2,7 +2,7 @@ from nose.tools import raises
 import numpy as np
 from numpy.testing import assert_equal
 
-from plume.npwrap import GrowingArray, Growing2dArray
+from plume.nputil import GrowingArray, Growing2dArray
 
 
 class TestGrowingArray(object):
