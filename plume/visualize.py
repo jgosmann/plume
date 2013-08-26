@@ -359,7 +359,7 @@ if __name__ == '__main__':
     parser.add_argument('filename', nargs=1, type=str)
     args = parser.parse_args()
 
-    with tables.open_file(args.filename[0], 'r') as data:
+    with tables.openFile(args.filename[0], 'r') as data:
         end = None
         if args.t is not None:
             end = args.t[0]

@@ -14,16 +14,16 @@ class GeneralRecorder(object):
         self.expected_steps = None
 
     def init(self, area):
-        self._positions = self.fileh.create_earray(
+        self._positions = self.fileh.createEArray(
             self.fileh.root, 'positions', tables.FloatAtom(),
             (self.client.numUAVs, 0, 3), expectedrows=self.expected_steps,
             title='Noiseless positions (numUAVs x timesteps x 3) of the UAVs '
             'over time.')
-        self.fileh.create_array(
+        self.fileh.createArray(
             self.fileh.root, 'sample_locations', self.client.get_locations(),
             title='Locations where prediction was requested '
             '(num locations x 3)')
-        self.fileh.create_array(
+        self.fileh.createArray(
             self.fileh.root, 'reference_samples',
             np.asarray(self.client.get_reference_samples()),
             title='Reference samples (num locations)')
@@ -32,11 +32,11 @@ class GeneralRecorder(object):
             area, [20, 20, 10])]
         x, y, z = (np.rollaxis(m, 1) for m in np.meshgrid(*ogrid))
         locations = np.column_stack((x.flat, y.flat, z.flat))
-        self.fileh.create_array(
+        self.fileh.createArray(
             self.fileh.root, 'gt_locations', locations,
             title='Locations where ground truth was evaluated '
             '(num locations x 3)')
-        self.fileh.create_array(
+        self.fileh.createArray(
             self.fileh.root, 'gt_samples',
             np.asarray(self.client.get_samples(locations)),
             title='Ground truth samples (num locations)')
@@ -64,7 +64,7 @@ class TargetsRecorder(object):
         self.expected_steps = expected_steps
 
     def init(self):
-        self._targets = self.fileh.create_earray(
+        self._targets = self.fileh.createEArray(
             self.fileh.root, 'targets', tables.FloatAtom(),
             (self.num_uavs, 0, 3), expectedrows=self.expected_steps,
             title='Target position for each UAV and timestep.')
@@ -83,19 +83,19 @@ class TaskPlumeRecorder(GeneralRecorder):
     def init(self, area):
         GeneralRecorder.init(self, area)
         self._locations = self.client.get_locations()
-        self._plume_measurements = self.fileh.create_earray(
+        self._plume_measurements = self.fileh.createEArray(
             self.fileh.root, 'plume_measurements', tables.FloatAtom(),
             (self.client.numUAVs, 0), expectedrows=self.expected_steps,
             title='Plume measurements (numUAVs x timesteps).')
-        self._rewards = self.fileh.create_earray(
+        self._rewards = self.fileh.createEArray(
             self.fileh.root, 'rewards', tables.FloatAtom(), (0,),
             expectedrows=self.expected_steps,
             title='Total reward in each timestep.')
-        self._rmse = self.fileh.create_earray(
+        self._rmse = self.fileh.createEArray(
             self.fileh.root, 'rmse', tables.FloatAtom(), (0,),
             expectedrows=self.expected_steps,
             title='Root mean square error in each time step.')
-        self._wrmse = self.fileh.create_earray(
+        self._wrmse = self.fileh.createEArray(
             self.fileh.root, 'wrmse', tables.FloatAtom(), (0,),
             expectedrows=self.expected_steps,
             title='Weighted root mean square error in each time step.')
@@ -152,7 +152,7 @@ class ControlsRecorder(object):
         self.fileh = fileh
         self.client = client
         self.expected_steps = expected_steps
-        self.controls = self.fileh.create_table(
+        self.controls = self.fileh.createTable(
             self.fileh.root, 'controls', self.Controls,
             title='Controls used for each step command.',
             expectedrows=self.expected_steps)

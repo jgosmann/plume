@@ -48,13 +48,12 @@ class Controller(object):
 
 
 def do_simulation_run(i, output_filename, conf, client):
-    with tables.open_file(output_filename, 'w') as fileh:
-        tbl = fileh.create_vlarray(
+    with tables.openFile(output_filename, 'w') as fileh:
+        tbl = fileh.createVLArray(
             '/', 'conf', tables.ObjectAtom(),
-            title='Configuration used to generate the stored data.',
-            expectedrows=1)
+            title='Configuration used to generate the stored data.')
         tbl.append(conf)
-        fileh.create_array('/', 'repeat', [i], title='Number of repeat run.')
+        fileh.createArray('/', 'repeat', [i], title='Number of repeat run.')
 
         num_steps = conf['global_conf']['duration_in_steps']
         predictor = conf['predictor']

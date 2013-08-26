@@ -14,7 +14,7 @@ from plume.recorder import ControlsRecorder, GeneralRecorder, TaskPlumeRecorder
 class TestGeneralRecorder(object):
     def setUp(self):
         self.tmp_file = tempfile.NamedTemporaryFile()
-        self.fileh = tables.open_file(self.tmp_file.name, 'w')
+        self.fileh = tables.openFile(self.tmp_file.name, 'w')
         self.client = MagicMock()
         self.client.numUAVs = 2
         self.client.state = (UAVState(UAVState.size * [0]),
@@ -126,7 +126,7 @@ class TestTaskPlumeRecorder(TestGeneralRecorder):
 class TestControlsRecorder(object):
     def setUp(self):
         self.tmp_file = tempfile.NamedTemporaryFile()
-        self.fileh = tables.open_file(self.tmp_file.name, 'w')
+        self.fileh = tables.openFile(self.tmp_file.name, 'w')
         self.client = MagicMock()
         self.client.numUAVs = 2
         self.recorder = ControlsRecorder(self.fileh, self.client)
