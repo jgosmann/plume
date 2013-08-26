@@ -60,3 +60,10 @@ class Growing2dArray(object):
             new_data[:self.rows, :self.cols] = self.data
             self._data = new_data
         self.rows = final_size
+
+
+def meshgrid_nd(*args):
+    args = [np.asarray(a) for a in args]
+    s = len(args) * (1,)
+    return np.broadcast_arrays(*(
+        a.reshape(s[:i] + (-1,) + s[i + 1:]) for i, a in enumerate(args)))
