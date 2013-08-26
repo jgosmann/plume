@@ -35,7 +35,8 @@ class Controller(object):
         for step in xrange(num_steps):
             logger.info('Step %i', step + 1)
             controls = self.movement_behavior.get_controls(
-                self.client.noisy_state, client.get_plume_sensor_outputs())
+                self.client.noisy_state,
+                self.client.get_plume_sensor_outputs())
             self.client.step(self.client.timestep, controls)
             for recorder in self.recorders:
                 recorder.record()
