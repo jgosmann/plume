@@ -75,7 +75,7 @@ def do_simulation_run(i, output_filename, conf, client):
         controller.run(num_steps)
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-c', '--config', nargs=1, type=str, help='Configuration to load.')
@@ -119,3 +119,7 @@ if __name__ == '__main__':
             output_filename = os.path.join(
                 args.output_dir[0], args.output[0] + '.%i.h5' % i)
             do_simulation_run(i, output_filename, conf, client)
+
+
+if __name__ == '__main__':
+    main()
