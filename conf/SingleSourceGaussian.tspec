@@ -1,0 +1,23 @@
+_kernel = ExponentialKernel, RBFKernel
+lengthscale = 12
+experiment = SingleSourceGaussian
+task = TaskPlume{experiment}DefaultControls
+
+__cmd__ = """fridge -m fridge.plugin.sumatra run -e {experiment} -r 'Basic parameter search and comparision of DUCB vs PDUCB' python plume/plume.py -o {name!q} -c {configfile!t}"""
+configfile = conf/pducb.py.in
+
+[DUCB]
+    behavior = '''behaviors.DUCB(
+        margin=5, predictor=predictor, grid_resolution=[52, 52, 12],
+        kappa={kappa}, gamma={gamma}, target_precision=1,
+        **global_conf)'''
+    kappa = 0.7, 1.05
+    _gamma = -1e-4, -2e-4, -4e-4
+
+[PDUCB]
+    behavior = '''behaviors.PDUCB(
+        margin=5, predictor=predictor, grid_resolution=[52, 52, 12],
+        kappa={kappa}, gamma={gamma}, epsilon=1e-30, target_precision=1,
+        **global_conf)'''
+    _kappa = 35, 70, 140
+    _gamma = 0, -1e-6, -5e6, -1e5, -1e4
