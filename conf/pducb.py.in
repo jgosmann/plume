@@ -1,10 +1,10 @@
 import behaviors
 import prediction
 
-global_conf = {
+global_conf = {{
     'duration_in_steps': 1500,
     'area': [[-140, 140], [-140, 140], [-80, 0]]
-}
+}}
 repeats = 20
 
 seedlist = [
@@ -23,4 +23,4 @@ predictor = prediction.OnlineGP(
     prediction.{kernel}({lengthscale}), 1e-10,
     global_conf['duration_in_steps'])
 behavior = {behavior}
-task = 'TaskPlumeSingleSourceGaussianDefaultControls'
+task = {task!r}
