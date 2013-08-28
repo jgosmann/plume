@@ -3,7 +3,7 @@ lengthscale = 12
 experiment = SingleSourceGaussian
 task = TaskPlume{experiment}DefaultControls
 
-__cmd__ = """~/bin/fridge -p fridge.plugin.sumatra -- run -e {experiment} -r 'Basic parameter search and comparision of DUCB vs PDUCB' python plume/plume.py -o {__name__!q}.h5 -c {configfile!t}"""
+__cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Basic parameter search and comparision of DUCB vs PDUCB' python plume/plume.py -o {__name__!q}.h5 -c {configfile!t}"""
 configfile = conf/pducb.py.in
 
 [DUCB]
