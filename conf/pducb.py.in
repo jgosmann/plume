@@ -22,5 +22,7 @@ seedlist = [
 predictor = prediction.OnlineGP(
     prediction.{kernel}({lengthscale}), 1e-10,
     global_conf['duration_in_steps'])
+kappa = {kappa}
+gamma = {gamma}
 behavior = {behavior}
 task = {task!r}
