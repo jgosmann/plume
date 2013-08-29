@@ -154,7 +154,7 @@ class UCBBased(object):
             self.last_prediction_update = self.step
 
             ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
-                self.get_effective_area(), [5, 5, 5])]
+                self.get_effective_area(), self.grid_resolution)]
             x, y, z = meshgrid_nd(*ogrid)
             ducb, unused = self.calc_neg_ucb(
                 np.column_stack((x.flat, y.flat, z.flat)), noisy_states)

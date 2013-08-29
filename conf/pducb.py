@@ -23,7 +23,7 @@ kernel = ConfObj('ExponentialKernel', 30)
 predictor = ConfObj('OnlineGP', 1e-10, global_conf['duration_in_steps'])
 behavior = ConfObj(
     'PDUCB',
-    margin=10, grid_resolution=[52, 52, 12],
+    margin=10, grid_resolution=[5, 5, 5],
     kappa=69.5, gamma=-5e-6, epsilon=1e-30, target_precision=1,
     **global_conf)
 
