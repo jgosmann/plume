@@ -13,7 +13,7 @@ configfile = conf/pducb.py.in
         lengthscale = 12
 
     behavior = """'DUCB',
-        margin=10, predictor=predictor, grid_resolution=[52, 52, 12],
+        margin=10, grid_resolution=[52, 52, 12],
         kappa=kappa, gamma=gamma, target_precision=1,
         **global_conf)"""
     _kappa = 0.7, 1.05
@@ -28,7 +28,7 @@ configfile = conf/pducb.py.in
         lengthscale = 12
 
     behavior = """'PDUCB',
-        margin=10, predictor=predictor, grid_resolution=[52, 52, 12],
+        margin=10, grid_resolution=[52, 52, 12],
         kappa=kappa, gamma=gamma, epsilon=1e-30, target_precision=1,
         **global_conf)"""
     _kappa = 35, 70, 140
