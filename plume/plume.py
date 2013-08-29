@@ -9,7 +9,7 @@ import pexpect
 from qrsim.tcpclient import UAVControls
 import tables
 
-from configloader import load_config
+from config import load_config
 from client import TaskPlumeClient
 from recorder import ControlsRecorder, TargetsRecorder, TaskPlumeRecorder
 
