@@ -25,6 +25,7 @@ from tvtk.util.ctf import ColorTransferFunction, PiecewiseFunction, set_lut
 import vtk
 
 from nputil import meshgrid_nd
+import prediction
 from prediction import predict_on_volume
 
 
@@ -303,7 +304,8 @@ class PlumeVisualizer(HasTraits):
 
     def calc_estimation(self, data):
         area = self.conf['global_conf']['area']
-        predictor = self.conf['predictor']
+        kernel = self.conf['kernel'](prediction)
+        predictor = self.conf['predictor'](prediction, kernel)
         predictor.fit(
             data.root.positions.read()[0, :self.end, :],
             data.root.plume_measurements.read()[0, :self.end])

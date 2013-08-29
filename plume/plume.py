@@ -9,8 +9,10 @@ import pexpect
 from qrsim.tcpclient import UAVControls
 import tables
 
+import behaviors
 from config import load_config
 from client import TaskPlumeClient
+import prediction
 from recorder import ControlsRecorder, TargetsRecorder, TaskPlumeRecorder
 
 logger = logging.getLogger(__name__)
@@ -57,19 +59,21 @@ def do_simulation_run(i, output_filename, conf, client):
         fileh.createArray('/', 'repeat', [i], title='Number of repeat run.')
 
         num_steps = conf['global_conf']['duration_in_steps']
-        predictor = conf['predictor']
+        kernel = conf['kernel'](prediction)
+        predictor = conf['predictor'](prediction, kernel)
+        behavior = conf['behavior'](behaviors, predictor=predictor)
 
         client = ControlsRecorder(fileh, client, num_steps)
-        controller = Controller(client, conf['behavior'])
+        controller = Controller(client, behavior)
         controller.init_new_sim(conf['seedlist'][i])
 
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
         recorder.init(conf['global_conf']['area'])
         controller.add_recorder(recorder)
 
-        if hasattr(conf['behavior'], 'targets'):
+        if hasattr(behavior, 'targets'):
             targets_recorder = TargetsRecorder(
-                fileh, conf['behavior'], client.numUAVs, num_steps)
+                fileh, behavior, client.numUAVs, num_steps)
             targets_recorder.init()
             controller.add_recorder(targets_recorder)
 

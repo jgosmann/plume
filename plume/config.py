@@ -2,6 +2,18 @@ from types import ModuleType
 import numpy as np
 
 
+class ConfObj(object):
+    def __init__(self, cls, *args, **kwargs):
+        self.cls = cls
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self, module, *prefix_args, **update_kwargs):
+        kwargs = self.kwargs.copy()
+        kwargs.update(update_kwargs)
+        return getattr(module, self.cls)(*(prefix_args + self.args), **kwargs)
+
+
 def load_config(filename):
     conf = {}
     execfile(filename, conf)

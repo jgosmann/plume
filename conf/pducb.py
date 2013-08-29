@@ -1,5 +1,5 @@
-import behaviors
-import prediction
+from config import ConfObj
+
 
 global_conf = {
     'duration_in_steps': 1000,
@@ -19,10 +19,11 @@ seedlist = [
     655709180, 1772000704, 1042609825, 720966052, 1292095483,
     776840730, 1450751032, 1785970451, 210791265, 1249102506]
 
-predictor = prediction.OnlineGP(
-    prediction.ExponentialKernel(30), 1e-10, global_conf['duration_in_steps'])
-behavior = behaviors.PDUCB(
-    margin=10, predictor=predictor, grid_resolution=[52, 52, 12],
+kernel = ConfObj('ExponentialKernel', 30)
+predictor = ConfObj('OnlineGP', 1e-10, global_conf['duration_in_steps'])
+behavior = ConfObj(
+    'PDUCB',
+    margin=10, grid_resolution=[52, 52, 12],
     kappa=69.5, gamma=-5e-6, epsilon=1e-30, target_precision=1,
     **global_conf)
 
