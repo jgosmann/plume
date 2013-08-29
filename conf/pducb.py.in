@@ -1,5 +1,5 @@
-import behaviors
-import prediction
+from config import ConfObj
+
 
 global_conf = {{
     'duration_in_steps': 1000,
