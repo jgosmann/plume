@@ -5,21 +5,13 @@ __cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Basic parameter search and 
 configfile = conf/pducb.py.in
 
 [DUCB]
-    [[exp]]
-        kernel = ExponentialKernel
-        lengthscale = 20
-    [[rbf]]
-        kernel = RBFKernel
-        lengthscale = 12
-
     behavior = """'DUCB',
         margin=10, grid_resolution=[52, 52, 12],
         kappa=kappa, gamma=gamma, target_precision=1,
-        **global_conf)"""
+        **global_conf"""
     _kappa = 0.7, 1.05
     _gamma = -1e-4, -2e-4, -4e-4
 
-[PDUCB]
     [[exp]]
         kernel = ExponentialKernel
         lengthscale = 20
@@ -27,9 +19,17 @@ configfile = conf/pducb.py.in
         kernel = RBFKernel
         lengthscale = 12
 
+[PDUCB]
     behavior = """'PDUCB',
         margin=10, grid_resolution=[52, 52, 12],
         kappa=kappa, gamma=gamma, epsilon=1e-30, target_precision=1,
-        **global_conf)"""
+        **global_conf"""
     _kappa = 35, 70, 140
     _gamma = 0, -1e-6, -5e6, -1e5, -1e4
+
+    [[exp]]
+        kernel = ExponentialKernel
+        lengthscale = 20
+    [[rbf]]
+        kernel = RBFKernel
+        lengthscale = 12
