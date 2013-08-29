@@ -19,7 +19,7 @@ seedlist = [
     655709180, 1772000704, 1042609825, 720966052, 1292095483,
     776840730, 1450751032, 1785970451, 210791265, 1249102506]
 
-kernel = ConfObj({kernel}, {lengthscale})
+kernel = ConfObj({kernel!r}, {lengthscale})
 predictor = ConfObj('OnlineGP', 1e-10, global_conf['duration_in_steps'])
 kappa = {kappa}
 gamma = {gamma}
