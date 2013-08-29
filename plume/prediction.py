@@ -71,8 +71,8 @@ class OnlineGP(object):
         self.y_train = None
         self.L_inv = None
         self.trained = False
-        self.min_rel_jitter = 1e-10
-        self.max_rel_jitter = 1e-6
+        self.min_rel_jitter = 1e-6
+        self.max_rel_jitter = 1e-1
 
     def fit(self, x_train, y_train):
         self.x_train = self._create_data_array(np.asarray(x_train))
