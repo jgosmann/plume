@@ -2,7 +2,7 @@ import behaviors
 import prediction
 
 global_conf = {{
-    'duration_in_steps': 1500,
+    'duration_in_steps': 1000,
     'area': [[-140, 140], [-140, 140], [-80, 0]]
 }}
 repeats = 20
