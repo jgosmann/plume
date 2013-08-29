@@ -23,5 +23,5 @@ kernel = ConfObj({kernel!r}, {lengthscale})
 predictor = ConfObj('OnlineGP', 1e-10, global_conf['duration_in_steps'])
 kappa = {kappa}
 gamma = {gamma}
-behavior = ConfigObj({behavior})
+behavior = ConfObj({behavior})
 task = {task!r}
