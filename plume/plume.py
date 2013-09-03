@@ -134,6 +134,7 @@ def main():
         num_steps = conf['global_conf']['duration_in_steps']
         client.init(conf['task'], num_steps)
 
+        clean = True
         for i in xrange(conf['repeats']):
             try:
                 output_filename = os.path.join(
@@ -141,8 +142,13 @@ def main():
                 do_simulation_run(i, output_filename, conf, client)
             except:
                 logger.exception('Repeat failed.')
+                clean = False
                 pass
+        return clean
 
 
 if __name__ == '__main__':
-    main()
+    if main():
+        sys.exit(os.EX_OK)
+    else:
+        sys.exit(os.EX_SOFTWARE)
