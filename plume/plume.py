@@ -18,6 +18,14 @@ from recorder import ControlsRecorder, TargetsRecorder, TaskPlumeRecorder
 logger = logging.getLogger(__name__)
 
 
+class FilterLevelAboveOrEqual(object):
+    def __init__(self, level):
+        self.level = level
+
+    def filter(self, record):
+        return record.levelno < self.level
+
+
 class Controller(object):
     def __init__(self, client, movement_behavior):
         self.client = client
@@ -98,8 +106,14 @@ def main():
         'output_dir', nargs=1, type=str, help='Output directory.')
     args = parser.parse_args()
 
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.INFO)
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.addFilter(FilterLevelAboveOrEqual(logging.WARNING))
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setLevel(logging.WARNING)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(stdout_handler)
+    root_logger.addHandler(stderr_handler)
 
     conf = load_config(args.config[0])
 
