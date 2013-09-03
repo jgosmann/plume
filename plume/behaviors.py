@@ -10,9 +10,11 @@ from prediction import predict_on_volume
 
 
 class VelocityTowardsWaypointController(object):
-    def __init__(self, maxv, max_climb):
+    def __init__(self, maxv, max_climb, area):
         self.maxv = maxv
         self.max_climb = max_climb
+        self.max_speeds = np.array([self.maxv, self.maxv, self.max_climb])
+        self.area = area
 
     def get_controls(self, noisy_states, targets):
         assert len(noisy_states) == len(targets)
@@ -42,6 +44,12 @@ class VelocityTowardsWaypointController(object):
             if norm(world_v[:2]) > self.maxv:
                 world_v[:2] *= self.maxv / norm(world_v[:2])
             world_v[2] = np.clip(world_v[2], -self.max_climb, self.max_climb)
+
+            outside_low = noisy_states[uav].position < self.area[:, 0]
+            outside_high = noisy_states[uav].position > self.area[:, 1]
+            world_v[outside_low] = self.max_speeds[outside_low]
+            world_v[outside_high] = -self.max_speeds[outside_high]
+
             controls.U[uav, :] = np.dot(Z * Y * X, world_v)
 
         return controls
@@ -81,7 +89,7 @@ class ToMaxVariance(object):
         self.area = area
         self.expected_steps = duration_in_steps
         self.step = 0
-        self._controller = VelocityTowardsWaypointController(3, 3)
+        self._controller = VelocityTowardsWaypointController(3, 3, area)
 
     def get_controls(self, noisy_states, plume_measurement):
         if self.step == 0:
@@ -125,7 +133,8 @@ class UCBBased(object):
         self.expected_steps = duration_in_steps
         self.step = 0
         self.last_prediction_update = 0
-        self._controller = VelocityTowardsWaypointController(3, 3)
+        self._controller = VelocityTowardsWaypointController(
+            3, 3, self.get_effective_area())
         self.targets = None
 
     def get_controls(self, noisy_states, plume_measurement):
