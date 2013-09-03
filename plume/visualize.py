@@ -1,5 +1,8 @@
 from __future__ import division
 
+import os
+os.environ['ETS_TOOLKIT'] = 'qt4'
+
 import argparse
 import inspect
 import numpy as np
@@ -355,7 +358,6 @@ class PlumeVisualizer(HasTraits):
 
 
 if __name__ == '__main__':
-    # FIXME ensure Qt interface is used
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-t', nargs=1, type=int, help='Number of steps to visualize.')
