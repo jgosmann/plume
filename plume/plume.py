@@ -52,9 +52,8 @@ class Controller(object):
                 recorder.record()
 
     def step_keeping_position(self):
-        c = UAVControls(self.client.numUAVs, 'wp')
-        c.U[:, :3] = [s.position for s in self.client.state]
-        c.U[:, 3] = [s.psi for s in self.client.state]
+        c = UAVControls(self.client.numUAVs, 'vel')
+        c.U.fill(0.0)
         self.client.step(self.client.timestep, c)
 
 
