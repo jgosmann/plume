@@ -150,6 +150,7 @@ class OnlineGP(object):
 
         l = len(self.L_inv.data)
         self.L_inv.enlarge_by(len(x))
+        self.L_inv.data[:l, l:] = 0.0
         self.L_inv.data[l:, :l] = -np.dot(
             np.dot(C_inv, B), self.L_inv.data[:l, :l])
         self.L_inv.data[l:, l:] = C_inv
