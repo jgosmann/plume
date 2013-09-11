@@ -17,9 +17,7 @@ class RBFKernel(object):
         If eval_derivative=True the derivative in x1 evaluated at the points in
         x1 will be returned.
         """
-        d = -2 * np.dot(x1, x2.T) + (
-            np.sum(np.square(x1), 1)[:, None] +
-            np.sum(np.square(x2), 1)[None, :])
+        d = self._calc_distance(x1, x2)
         res = self.variance * np.exp(-0.5 * d / self.lengthscale ** 2)
         if eval_derivative:
             s = x1[:, None, :] - x2[None, :, :]
@@ -36,6 +34,20 @@ class RBFKernel(object):
             np.sum(np.square(x1), 1) + np.sum(np.square(x2), 1))
         return self.variance * np.exp(-0.5 * d / self.lengthscale ** 2)
 
+    def variance_derivative(self, x1, x2):
+        d = self._calc_distance(x1, x2)
+        return np.exp(-0.5 * d / self.lengthscale ** 2)
+
+    def lengthscale_derivative(self, x1, x2):
+        d = self._calc_distance(x1, x2)
+        return 2 * self.variance * d / (self.lengthscale ** 3) * np.exp(
+            -0.5 * d / self.lengthscale ** 2)
+
+    def _calc_distance(self, x1, x2):
+        return -2 * np.dot(x1, x2.T) + (
+            np.sum(np.square(x1), 1)[:, None] +
+            np.sum(np.square(x2), 1)[None, :])
+
 
 class ExponentialKernel(object):
     def __init__(self, lengthscale, variance=1.0):
@@ -43,9 +55,7 @@ class ExponentialKernel(object):
         self.variance = variance
 
     def __call__(self, x1, x2, eval_derivative=False):
-        d = np.sqrt(-2 * np.dot(x1, x2.T) + (
-            np.sum(np.square(x1), 1)[:, None] +
-            np.sum(np.square(x2), 1)[None, :]))
+        d = self._calc_distance(x1, x2)
         res = self.variance * np.exp(-d / self.lengthscale)
         if eval_derivative:
             s = x1[:, None, :] - x2[None, :, :]
@@ -60,6 +70,20 @@ class ExponentialKernel(object):
 
         d = np.sqrt(np.sum((x1 - x2) ** 2, axis=1))
         return self.variance * np.exp(-d / self.lengthscale)
+
+    def variance_derivative(self, x1, x2):
+        d = self._calc_distance(x1, x2)
+        return np.exp(-0.5 * d / self.lengthscale ** 2)
+
+    def lengthscale_derivative(self, x1, x2):
+        d = self._calc_distance(x1, x2)
+        return self.variance * d / (self.lengthscale ** 2) * np.exp(
+            -d / self.lengthscale)
+
+    def _calc_distance(self, x1, x2):
+        return -2 * np.dot(x1, x2.T) + (
+            np.sum(np.square(x1), 1)[:, None] +
+            np.sum(np.square(x2), 1)[None, :])
 
 
 class OnlineGP(object):
