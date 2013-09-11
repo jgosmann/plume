@@ -208,17 +208,18 @@ class OnlineGP(object):
         self.min_rel_jitter = 1e-6
         self.max_rel_jitter = 1e-1
 
-    def fit(self, x_train, y_train):
+    def fit(self, x_train, y_train, weighting=1.0):
         self.x_train = self._create_data_array(np.asarray(x_train))
         self.y_train = self._create_data_array(np.asarray(y_train))
         self.L_inv = Growing2dArray(expected_rows=self.expected_samples)
-        self._refit()
+        self._refit(weighting)
 
-    def _refit(self):
+    def _refit(self, weighting):
         self.L_inv.enlarge_by(len(self.x_train.data) - len(self.L_inv.data))
         self.L_inv.data[:] = inv(self._jitter_cholesky(
             self.kernel(self.x_train.data, self.x_train.data) +
-            np.eye(len(self.x_train.data)) * self.noise_var))
+            np.diag(np.repeat(
+                self.noise_var, len(self.x_train.data)) / weighting)))
         self.K_inv = np.dot(self.L_inv.data.T, self.L_inv.data)
         self.trained = True
 
@@ -256,17 +257,17 @@ class OnlineGP(object):
         elif eval_MSE:
             return pred, mse
         else:
-            return pred
+            return pred,
 
-    def add_observations(self, x, y):
+    def add_observations(self, x, y, weighting=1.0):
         if not self.trained:
             self.fit(x, y)
             return
 
         K_obs = self.kernel(x, self.x_train.data)
         B = np.dot(K_obs, self.L_inv.data.T)
-        CC_T = self.kernel(x, x) + np.eye(len(x)) * self.noise_var - \
-            np.dot(B, B.T)
+        CC_T = self.kernel(x, x) - np.dot(B, B.T) + np.diag(np.repeat(
+            self.noise_var, len(self.x_train.data)) / weighting)
         diag_indices = np.diag_indices_from(CC_T)
         CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
 
@@ -398,6 +399,69 @@ class LikelihoodGP(object):
         else:
             gp_neg_log_likelihood = self.gp.calc_neg_log_likelihood()
             return gp_neg_log_likelihood - prior_log_likelihood
+
+
+class HeuristicGPMixture(object):
+    def __init__(
+            self, kernel_low, kernel_high, noise_var=1.0, gating_var=0.01,
+            expected_samples=100):
+        # FIXME kernel
+        self.gp_low = OnlineGP(kernel_low, noise_var, expected_samples)
+        self.gp_gating_low = OnlineGP(kernel_low, gating_var, expected_samples)
+        self.gp_high = OnlineGP(kernel_high, noise_var, expected_samples)
+        self.gp_gating_high = OnlineGP(
+            kernel_high, gating_var, expected_samples)
+        self.p_high = GrowingArray((1,), expected_rows=expected_samples)
+
+    def fit(self, x_train, y_train):
+        p_high = self._calc_p_high(y_train)
+        self.p_high.extend(p_high)
+        self.gp_low.fit(x_train, y_train, 1.0 - p_high)
+        self.gp_high.fit(x_train, y_train, p_high)
+        self.gp_gating_low.fit(x_train, 1.0 - p_high)
+        self.gp_gating_high.fit(x_train, p_high)
+
+    def predict(self, x, eval_MSE=False, eval_derivatives=False):
+        low = self.gp_low.predict(x, eval_MSE, eval_derivatives)
+        high = self.gp_high.predict(x, eval_MSE, eval_derivatives)
+        gating_low = self.gp_gating_low.predict(
+            x, eval_derivatives=eval_derivatives)
+        gating_high = self.gp_gating_high.predict(
+            x, eval_derivatives=eval_derivatives)
+
+        p_high = np.exp(gating_high[0]) / (
+            np.exp(gating_high[0]) + np.exp(gating_low[0]))
+        pred = p_high * high[0] + (1 - p_high) * low[0]
+        if eval_MSE:
+            if eval_derivatives:
+                low_mse = low[2]
+                high_mse = high[2]
+            else:
+                low_mse = low[1]
+                high_mse = high[1]
+            mse = p_high * (high_mse + (high[0] - pred) ** 2) + \
+                (1 - p_high) * (low_mse + (low[0] - pred) ** 2)
+
+        if eval_derivatives:
+            # FIXME
+            pass
+        else:
+            if eval_MSE:
+                return pred, mse
+            else:
+                return pred
+
+    def add_observations(self, x, y):
+        p_high = self._calc_p_high(y)
+        self.p_high.extend(p_high)
+        self.gp_low.add_observations(x, y, 1.0 - p_high)
+        self.gp_high.add_observations(x, y, p_high)
+        self.gp_gating_low.add_observations(x, 1.0 - p_high)
+        self.gp_gating_high.add_observations(x, p_high)
+
+    def _calc_p_high(self, y):
+        # FIXME hyperparameters should be ajustable.
+        return 1.0 / (1.0 + np.exp(-10.0 * (y - 0.3)))
 
 
 class NumericalStabilityWarning(RuntimeWarning):
