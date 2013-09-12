@@ -251,9 +251,8 @@ class OnlineGP(object):
 
 class LikelihoodGP(object):
     def __init__(self, kernel, noise_var=1.0, expected_samples=100):
-        self.priors = [UniformLogPrior()
-                       for i in xrange(len(kernel.get_params))]
-        self.bounds = [(None, None)] * len(kernel.get_params)
+        self.priors = [UniformLogPrior() for i in xrange(len(kernel.params))]
+        self.bounds = [(None, None)] * len(kernel.params)
         self.kernel = kernel
         self.noise_var = noise_var
         self.expected_samples = expected_samples
