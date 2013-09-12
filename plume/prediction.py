@@ -268,7 +268,6 @@ class LikelihoodGP(object):
         self.kernel.params = params
         self.gp.fit(x_train, y_train)
         self.neg_log_likelihood = self._calc_neg_log_likelihood()
-        print self.neg_log_likelihood
 
     def _optimization_fn(self, params, x_train, y_train):
         self.kernel.params = params
