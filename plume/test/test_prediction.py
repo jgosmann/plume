@@ -49,7 +49,7 @@ class TestRBFKernel(object):
         assert_almost_equal(actual, expected)
 
     def test_can_get_params_as_array(self):
-        kernel = ExponentialKernel(lengthscale=0.6, variance=0.75)
+        kernel = RBFKernel(lengthscale=0.6, variance=0.75)
         assert_equal(kernel.get_params(), np.array([0.6, 0.75]))
 
 
