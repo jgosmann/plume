@@ -1,4 +1,4 @@
-from hamcrest import assert_that, is_
+from hamcrest import assert_that, equal_to, is_
 import numpy as np
 from numpy.testing import assert_almost_equal, assert_equal
 
@@ -51,6 +51,13 @@ class TestRBFKernel(object):
     def test_can_get_params_as_array(self):
         kernel = RBFKernel(lengthscale=0.6, variance=0.75)
         assert_equal(kernel.get_params(), np.array([0.6, 0.75]))
+        assert_equal(kernel.params, np.array([0.6, 0.75]))
+
+    def test_can_set_params_as_array(self):
+        kernel = RBFKernel(lengthscale=0.6, variance=0.75)
+        kernel.set_params(np.array([1.2, 0.5]))
+        assert_that(kernel.lengthscale, is_(equal_to(1.2)))
+        assert_that(kernel.variance, is_(equal_to(0.5)))
 
 
 class TestExponentialKernel(object):
@@ -98,6 +105,13 @@ class TestExponentialKernel(object):
     def test_can_get_params_as_array(self):
         kernel = ExponentialKernel(lengthscale=0.6, variance=0.75)
         assert_equal(kernel.get_params(), np.array([0.6, 0.75]))
+        assert_equal(kernel.params, np.array([0.6, 0.75]))
+
+    def test_can_set_params_as_array(self):
+        kernel = ExponentialKernel(lengthscale=0.6, variance=0.75)
+        kernel.set_params(np.array([1.2, 0.5]))
+        assert_that(kernel.lengthscale, is_(equal_to(1.2)))
+        assert_that(kernel.variance, is_(equal_to(0.5)))
 
 
 class TestOnlineGP(object):
