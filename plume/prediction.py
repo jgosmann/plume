@@ -2,7 +2,7 @@ import warnings
 
 import numpy as np
 from numpy.linalg import cholesky, inv, linalg
-from scipy.optimize import minimize
+from scipy.optimize import fmin_l_bfgs_b
 
 from nputil import GrowingArray, Growing2dArray, meshgrid_nd
 
@@ -262,22 +262,45 @@ class OnlineGP(object):
             -kernel_derivative - prior_derivative
 
 
-class Test(object):
-    def __init__(self, x_train, y_train):
-        self.x_train = x_train
-        self.y_train = y_train
+class LikelihoodGP(object):
+    def __init__(self, kernel, noise_var=1.0, expected_samples=100):
+        self.priors = [UniformLogPrior()
+                       for i in xrange(len(kernel.get_params))]
+        self.bounds = [(None, None)] * len(kernel.get_params)
+        self.kernel = kernel
+        self.noise_var = noise_var
+        self.expected_samples = expected_samples
+        self.gp = OnlineGP(self.kernel, self.noise_var, self.expected_samples)
 
-    def opt_fn(self, x):
-        print(x)
-        gp = OnlineGP(RBFKernel(x[1], x[0]), 1e-10)
-        gp.fit(self.x_train, self.y_train)
-        return gp.calc_neg_log_likelihood()
+    trained = property(lambda self: self.gp.trained)
 
-    def optimize(self):
-        r = minimize(
-            self.opt_fn, np.array([1.0, 15]), method='L-BFGS-B', jac=True,
-            bounds=[(0.1, None), (0.1, 200)])
-        print r.x
+    def fit(self, x_train, y_train):
+        params, unused, unused = fmin_l_bfgs_b(
+            self._optimization_fn, self.kernel.params,
+            args=(x_train, y_train), bounds=self.bounds)
+        self.kernel.params = params
+        self.gp.fit(x_train, y_train)
+
+    def _optimization_fn(self, params, x_train, y_train):
+        self.kernel.params = params
+        self.gp.fit(x_train, y_train)
+        return self.calc_neg_log_likelihood()
+
+    def predict(self, x, eval_MSE=False, eval_derivatives=False):
+        return self.gp.predict(x, eval_MSE, eval_derivatives)
+
+    def add_observations(self, x, y):
+        # TODO
+        pass
+
+    def calc_neg_log_likelihood(self):
+        gp_neg_log_likelihood, gp_neg_deriv = self.gp.calc_neg_log_likelihood()
+        prior_log_likelihood = np.sum([prior(theta) for prior, theta in zip(
+            self.priors, self.kernel.params)])
+        prior_deriv = np.sum([prior.derivative(theta) for prior, theta in zip(
+            self.priors, self.kernel.params)])
+        return gp_neg_log_likelihood - prior_log_likelihood, \
+            gp_neg_deriv - prior_deriv
 
 
 class NumericalStabilityWarning(RuntimeWarning):
