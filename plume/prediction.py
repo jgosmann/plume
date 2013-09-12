@@ -280,6 +280,10 @@ class LikelihoodGP(object):
         return self.gp.predict(x, eval_MSE, eval_derivatives)
 
     def add_observations(self, x, y):
+        if not self.trained:
+            self.fit(x, y)
+            return
+
         self.gp.add_observations(x, y)
         new_neg_log_likelihood = self._calc_neg_log_likelihood()
         if new_neg_log_likelihood[0] > self.neg_log_likelihood[0]:
