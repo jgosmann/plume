@@ -12,6 +12,9 @@ class RBFKernel(object):
         self.lengthscale = lengthscale
         self.variance = variance
 
+    def get_params(self):
+        return np.array([self.lengthscale, self.variance])
+
     def __call__(self, x1, x2, eval_derivative=False):
         """Returns the Gram matrix for the points given in x1 and x1.
 
@@ -52,6 +55,9 @@ class ExponentialKernel(object):
     def __init__(self, lengthscale, variance=1.0):
         self.lengthscale = lengthscale
         self.variance = variance
+
+    def get_params(self):
+        return np.array([self.lengthscale, self.variance])
 
     def __call__(self, x1, x2, eval_derivative=False):
         d = self._calc_distance(x1, x2)

@@ -1,6 +1,6 @@
 from hamcrest import assert_that, is_
 import numpy as np
-from numpy.testing import assert_almost_equal
+from numpy.testing import assert_almost_equal, assert_equal
 
 import plume.prediction
 from plume.prediction import ExponentialKernel, RBFKernel
@@ -48,6 +48,10 @@ class TestRBFKernel(object):
         actual = RBFKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
         assert_almost_equal(actual, expected)
 
+    def test_can_get_params_as_array(self):
+        kernel = ExponentialKernel(lengthscale=0.6, variance=0.75)
+        assert_equal(kernel.get_params(), np.array([0.6, 0.75]))
+
 
 class TestExponentialKernel(object):
     def test_kernel(self):
@@ -90,6 +94,10 @@ class TestExponentialKernel(object):
         expected = np.array([0.01805266, 0.00505346])
         actual = ExponentialKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
         assert_almost_equal(actual, expected)
+
+    def test_can_get_params_as_array(self):
+        kernel = ExponentialKernel(lengthscale=0.6, variance=0.75)
+        assert_equal(kernel.get_params(), np.array([0.6, 0.75]))
 
 
 class TestOnlineGP(object):
