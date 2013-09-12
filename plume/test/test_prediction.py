@@ -41,6 +41,13 @@ class TestRBFKernel(object):
         actual = RBFKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
         assert_almost_equal(actual, expected)
 
+    def test_param_derivatives(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([7.22981794e-04, 2.79498988e-06])
+        actual = RBFKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
+        assert_almost_equal(actual, expected)
+
 
 class TestExponentialKernel(object):
     def test_kernel(self):
@@ -74,6 +81,13 @@ class TestExponentialKernel(object):
         x1 = np.array([[1, 1, 1], [1, 2, 1]])
         x2 = np.array([[1, 2, 3], [4, 2, 1]])
         expected = np.array([0.018052663641012889, 0.0050534602493140998])
+        actual = ExponentialKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_param_derivatives(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([0.01805266, 0.00505346])
         actual = ExponentialKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
         assert_almost_equal(actual, expected)
 
