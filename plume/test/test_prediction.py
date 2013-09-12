@@ -218,3 +218,10 @@ class TestLikelihoodGP(object):
         expected = np.array([0.7032695, 1.17616655])
         actual = self.gp.kernel.params
         assert_almost_equal(expected, actual)
+
+    def test_add_observations_retrains_as_needed(self):
+        x = np.array([[-3.5, -2.7, -1, 0.5, 1.25]]).T
+        y = np.array([[0, -0.5, 0.8, 1, 0]]).T
+        self.gp.add_observations(x, y)
+        expected = np.array([0.9766916, 0.57622054])
+        assert_almost_equal(self.gp.kernel.params, expected)

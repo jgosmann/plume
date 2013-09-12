@@ -257,6 +257,7 @@ class LikelihoodGP(object):
         self.noise_var = noise_var
         self.expected_samples = expected_samples
         self.gp = OnlineGP(self.kernel, self.noise_var, self.expected_samples)
+        self.neg_log_likelihood = None
 
     trained = property(lambda self: self.gp.trained)
 
@@ -266,20 +267,31 @@ class LikelihoodGP(object):
             args=(x_train, y_train), bounds=self.bounds)
         self.kernel.params = params
         self.gp.fit(x_train, y_train)
+        self.neg_log_likelihood = self._calc_neg_log_likelihood()
+        print self.neg_log_likelihood
 
     def _optimization_fn(self, params, x_train, y_train):
         self.kernel.params = params
         self.gp.fit(x_train, y_train)
-        return self.calc_neg_log_likelihood()
+        print self._calc_neg_log_likelihood()
+        return self._calc_neg_log_likelihood()
 
     def predict(self, x, eval_MSE=False, eval_derivatives=False):
         return self.gp.predict(x, eval_MSE, eval_derivatives)
 
     def add_observations(self, x, y):
-        # TODO
-        pass
+        self.gp.add_observations(x, y)
+        new_neg_log_likelihood = self._calc_neg_log_likelihood()
+        if new_neg_log_likelihood[0] > self.neg_log_likelihood[0]:
+            self.fit(self.gp.x_train.data, self.gp.y_train.data)
+            self.neg_log_likelihood = self._calc_neg_log_likelihood()
+        else:
+            self.neg_log_likelihood = new_neg_log_likelihood
 
     def calc_neg_log_likelihood(self):
+        return self.neg_log_likelihood
+
+    def _calc_neg_log_likelihood(self):
         gp_neg_log_likelihood, gp_neg_deriv = self.gp.calc_neg_log_likelihood()
         prior_log_likelihood = np.sum([prior(theta) for prior, theta in zip(
             self.priors, self.kernel.params)])
