@@ -246,7 +246,7 @@ class OnlineGP(object):
             for param_deriv in self.kernel.param_derivatives(
                 self.x_train.data, self.x_train.data)])
 
-        return -log_likelihood, -kernel_derivative
+        return -np.squeeze(log_likelihood), -kernel_derivative
 
 
 class LikelihoodGP(object):

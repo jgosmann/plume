@@ -180,3 +180,12 @@ class TestOnlineGP(object):
         unused, unused, unused, actual = self.gp.predict(
             x_star, eval_MSE=True, eval_derivatives=True)
         assert_almost_equal(actual, expected)
+
+    def test_can_calculate_neg_log_likelihood(self):
+        x = np.array([[-4, -2, -0.5, 0, 2]]).T
+        y = np.array([[-2, 0, 1, 2, -1]]).T
+        self.gp.fit(x, y)
+        actual = self.gp.calc_neg_log_likelihood()
+        expected = (8.51911832, np.array([0.76088728, -0.49230927]))
+        assert_almost_equal(actual[0], expected[0])
+        assert_almost_equal(actual[1], expected[1])
