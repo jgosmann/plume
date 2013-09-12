@@ -2,6 +2,7 @@ import warnings
 
 import numpy as np
 from numpy.linalg import cholesky, inv, linalg
+from scipy.optimize import minimize
 
 from nputil import GrowingArray, Growing2dArray, meshgrid_nd
 
@@ -198,6 +199,52 @@ class OnlineGP(object):
                     print jitter
                     jitter *= 10.0
         raise linalg.LinAlgError('Singular matrix despite jitter.')
+
+    def calc_neg_log_likelihood(self):
+        svs = np.dot(self.L_inv.data, self.y_train.data)
+        log_likelihood = -0.5 * np.dot(svs.T, svs) + \
+            np.sum(np.log(np.diag(self.L_inv.data))) - \
+            0.5 * len(self.y_train.data) * np.log(2 * np.pi)
+        # FIXME hardcoded priors
+        log_prior_lengthscale = \
+            -0.5 * (self.kernel.lengthscale - 15) ** 2 / 25 - \
+            0.5 * np.log(2 * np.pi) - np.log(5)
+
+        alpha = np.dot(self.L_inv.data.T, svs)
+        grad_weighting = np.dot(alpha, alpha.T) - self.K_inv
+        kernel_derivative = np.array([
+            0.5 * np.sum(np.einsum(
+                'ij,ji->i', grad_weighting, self.kernel.variance_derivative(
+                    self.x_train.data, self.x_train.data))),
+            0.5 * np.sum(np.einsum(
+                'ij,ji->i', grad_weighting,
+                self.kernel.lengthscale_derivative(
+                    self.x_train.data, self.x_train.data)))])
+        prior_derivative = np.array([0, -(self.kernel.lengthscale - 15) / 25])
+
+        print(
+            -log_likelihood - log_prior_lengthscale,
+            -kernel_derivative - prior_derivative)
+        return -log_likelihood - log_prior_lengthscale, \
+            -kernel_derivative - prior_derivative
+
+
+class Test(object):
+    def __init__(self, x_train, y_train):
+        self.x_train = x_train
+        self.y_train = y_train
+
+    def opt_fn(self, x):
+        print(x)
+        gp = OnlineGP(RBFKernel(x[1], x[0]), 1e-10)
+        gp.fit(self.x_train, self.y_train)
+        return gp.calc_neg_log_likelihood()
+
+    def optimize(self):
+        r = minimize(
+            self.opt_fn, np.array([1.0, 15]), method='L-BFGS-B', jac=True,
+            bounds=[(0.1, None), (0.1, 200)])
+        print r.x
 
 
 class NumericalStabilityWarning(RuntimeWarning):
