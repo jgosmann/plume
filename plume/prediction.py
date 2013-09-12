@@ -35,14 +35,12 @@ class RBFKernel(object):
             np.sum(np.square(x1), 1) + np.sum(np.square(x2), 1))
         return self.variance * np.exp(-0.5 * d / self.lengthscale ** 2)
 
-    def variance_derivative(self, x1, x2):
+    def param_derivatives(self, x1, x2):
         d = self._calc_distance(x1, x2)
-        return np.exp(-0.5 * d / self.lengthscale ** 2)
-
-    def lengthscale_derivative(self, x1, x2):
-        d = self._calc_distance(x1, x2)
-        return 2 * self.variance * d / (self.lengthscale ** 3) * np.exp(
-            -0.5 * d / self.lengthscale ** 2)
+        variance_deriv = np.exp(-0.5 * d / self.lengthscale ** 2)
+        lengthscale_deriv = 2 * self.variance * d / (self.lengthscale ** 3) * \
+            variance_deriv
+        return [lengthscale_deriv, variance_deriv]
 
     def _calc_distance(self, x1, x2):
         return -2 * np.dot(x1, x2.T) + (
@@ -72,19 +70,17 @@ class ExponentialKernel(object):
         d = np.sqrt(np.sum((x1 - x2) ** 2, axis=1))
         return self.variance * np.exp(-d / self.lengthscale)
 
-    def variance_derivative(self, x1, x2):
+    def param_derivatives(self, x1, x2):
         d = self._calc_distance(x1, x2)
-        return np.exp(-0.5 * d / self.lengthscale ** 2)
-
-    def lengthscale_derivative(self, x1, x2):
-        d = self._calc_distance(x1, x2)
-        return self.variance * d / (self.lengthscale ** 2) * np.exp(
-            -d / self.lengthscale)
+        variance_deriv = np.exp(-d / self.lengthscale)
+        lengthscale_deriv = self.variance * d / (self.lengthscale ** 2) * \
+            variance_deriv
+        return [lengthscale_deriv, variance_deriv]
 
     def _calc_distance(self, x1, x2):
-        return -2 * np.dot(x1, x2.T) + (
+        return np.sqrt(-2 * np.dot(x1, x2.T) + (
             np.sum(np.square(x1), 1)[:, None] +
-            np.sum(np.square(x2), 1)[None, :])
+            np.sum(np.square(x2), 1)[None, :]))
 
 
 class OnlineGP(object):
