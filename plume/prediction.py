@@ -83,6 +83,27 @@ class ExponentialKernel(object):
             np.sum(np.square(x2), 1)[None, :]))
 
 
+class UniformLogPrior(object):
+    def __call__(self, x):
+        return 0
+
+    def derivative(self, x):
+        return 0
+
+
+class GaussianLogPrior(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, x):
+        return -0.5 * ((x - self.mean) / self.std) ** 2 - np.log(self.std) - \
+            0.5 * np.log(2 * np.pi)
+
+    def derivative(self, x):
+        return -(x - self.mean) / self.std
+
+
 class OnlineGP(object):
     def __init__(self, kernel, noise_var=1.0, expected_samples=100):
         self.kernel = kernel
