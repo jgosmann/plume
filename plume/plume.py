@@ -152,12 +152,13 @@ def main():
             except:
                 logger.exception('Repeat failed.')
                 clean = False
-                pass
         return clean
 
 
 if __name__ == '__main__':
-    if main():
+    r = main()
+    print(r)
+    if r:
         sys.exit(os.EX_OK)
     else:
         sys.exit(os.EX_SOFTWARE)
