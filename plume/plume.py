@@ -95,6 +95,8 @@ def do_simulation_run(i, output_filename, conf, client):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        '-q', '--quiet', action='store_true', help='Reduce output verbosity.')
+    parser.add_argument(
         '-c', '--config', nargs=1, type=str, help='Configuration to load.')
     parser.add_argument(
         '-o', '--output', nargs=1, type=str, default=['plume'],
@@ -115,7 +117,10 @@ def main():
     stderr_handler = logging.StreamHandler(sys.stderr)
     stderr_handler.setLevel(logging.WARNING)
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    if args.quiet:
+        root_logger.setLevel(logging.WARNING)
+    else:
+        root_logger.setLevel(logging.INFO)
     root_logger.addHandler(stdout_handler)
     root_logger.addHandler(stderr_handler)
 
