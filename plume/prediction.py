@@ -229,9 +229,9 @@ class OnlineGP(object):
                         NumericalStabilityWarning)
                     return L
                 except linalg.LinAlgError:
-                    print jitter
                     jitter *= 10.0
-        raise linalg.LinAlgError('Singular matrix despite jitter.')
+        raise linalg.LinAlgError(
+            'Singular matrix despite jitter of {}.'.format(jitter))
 
     def calc_neg_log_likelihood(self):
         svs = np.dot(self.L_inv.data, self.y_train.data)
@@ -272,7 +272,6 @@ class LikelihoodGP(object):
     def _optimization_fn(self, params, x_train, y_train):
         self.kernel.params = params
         self.gp.fit(x_train, y_train)
-        print self._calc_neg_log_likelihood()
         return self._calc_neg_log_likelihood()
 
     def predict(self, x, eval_MSE=False, eval_derivatives=False):
