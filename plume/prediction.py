@@ -257,7 +257,7 @@ class LikelihoodGP(object):
         self.noise_var = noise_var
         self.expected_samples = expected_samples
         self.gp = OnlineGP(self.kernel, self.noise_var, self.expected_samples)
-        self.neg_log_likelihood = None
+        self.neg_log_likelihood = (-np.inf, np.array([0, 0]))
 
     trained = property(lambda self: self.gp.trained)
 
