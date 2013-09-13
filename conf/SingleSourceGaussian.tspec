@@ -17,11 +17,11 @@ bounds = [(0, None), (0, None)]
     [[exp]]
         kernel = ExponentialKernel
         lengthscale = 20
-        priors = """[ConfigObj('GaussianLogPrior', 20, 50), ConfigObj('UniformLogPrior')]"""
+        priors = """[ConfObj('GaussianLogPrior', 20, 50), ConfObj('UniformLogPrior')]"""
     [[rbf]]
         kernel = RBFKernel
         lengthscale = 12
-        priors = """[ConfigObj('GaussianLogPrior', 12, 50), ConfigObj('UniformLogPrior')]"""
+        priors = """[ConfObj('GaussianLogPrior', 12, 50), ConfObj('UniformLogPrior')]"""
 
 [PDUCB]
     behavior = """'PDUCB',
@@ -34,8 +34,8 @@ bounds = [(0, None), (0, None)]
     [[exp]]
         kernel = ExponentialKernel
         lengthscale = 20
-        priors = """[ConfigObj('GaussianLogPrior', 20, 50), ConfigObj('UniformLogPrior')]"""
+        priors = """[ConfObj('GaussianLogPrior', 20, 50), ConfObj('UniformLogPrior')]"""
     [[rbf]]
         kernel = RBFKernel
         lengthscale = 12
-        priors = """[ConfigObj('GaussianLogPrior', 12, 50), ConfigObj('UniformLogPrior')]"""
+        priors = """[ConfObj('GaussianLogPrior', 12, 50), ConfObj('UniformLogPrior')]"""
