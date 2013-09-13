@@ -4,6 +4,8 @@ task = TaskPlumeSingleSourceGaussianDispersionNoiselessDefaultControls
 __cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Basic parameter search and comparision of DUCB vs PDUCB' python plume/plume.py -o {__name__!q} -c {configfile!t}"""
 configfile = conf/pducb.py.in
 
+bounds = [(0, None), (0, None)]
+
 [DUCB]
     behavior = """'DUCB',
         margin=10, grid_resolution=[5, 5, 5],
@@ -15,9 +17,11 @@ configfile = conf/pducb.py.in
     [[exp]]
         kernel = ExponentialKernel
         lengthscale = 20
+        priors = [ConfigObj('GaussianLogPrior', 20, 50), ConfigObj('UniformLogPrior')]
     [[rbf]]
         kernel = RBFKernel
         lengthscale = 12
+        priors = [ConfigObj('GaussianLogPrior', 12, 50), ConfigObj('UniformLogPrior')]
 
 [PDUCB]
     behavior = """'PDUCB',
@@ -30,6 +34,8 @@ configfile = conf/pducb.py.in
     [[exp]]
         kernel = ExponentialKernel
         lengthscale = 20
+        priors = [ConfigObj('GaussianLogPrior', 20, 50), ConfigObj('UniformLogPrior')]
     [[rbf]]
         kernel = RBFKernel
         lengthscale = 12
+        priors = [ConfigObj('GaussianLogPrior', 12, 50), ConfigObj('UniformLogPrior')]

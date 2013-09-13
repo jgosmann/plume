@@ -20,7 +20,9 @@ seedlist = [
     776840730, 1450751032, 1785970451, 210791265, 1249102506]
 
 kernel = ConfObj({kernel!r}, {lengthscale})
-predictor = ConfObj('OnlineGP', 1e-10, global_conf['duration_in_steps'])
+predictor = ConfObj('LikelihoodGP', 1e-10, global_conf['duration_in_steps'])
+bounds = {bounds}
+priors = {priors}
 kappa = {kappa}
 gamma = {gamma}
 behavior = ConfObj({behavior})
