@@ -71,7 +71,7 @@ def do_simulation_run(i, output_filename, conf, client):
         if 'bounds' in conf:
             predictor.bounds = conf['bounds']
         if 'priors' in conf:
-            for i in range(conf['priors']):
+            for i in range(len(conf['priors'])):
                 predictor.priors[i] = conf['prior'](prediction)
         behavior = conf['behavior'](behaviors, predictor=predictor)
 
