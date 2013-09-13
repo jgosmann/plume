@@ -76,6 +76,7 @@ class TestTaskPlumeRecorder(TestGeneralRecorder):
         self.predictor = MagicMock()
         self.predictor.trained = False
         self.predictor.predict.side_effect = lambda x: np.empty(len(x))
+        self.predictor.kernel.params = np.array([0, 0])
         TestGeneralRecorder.setUp(self)
         self.client.get_plume_sensor_outputs.return_value = range(
             self.client.numUAVs)
@@ -121,6 +122,14 @@ class TestTaskPlumeRecorder(TestGeneralRecorder):
             self.recorder.record()
         assert_almost_equal(
             self.recorder.wrmse, steps * [0.75])
+
+    def test_records_kernel_params(self):
+        steps = 4
+        self.predictor.trained = True
+        self.predictor.kernel.params = [23, 42]
+        for i in xrange(steps):
+            self.recorder.record()
+        assert_equal(self.recorder.kernel_params, steps * [[23, 42]])
 
 
 class TestControlsRecorder(object):
