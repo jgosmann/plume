@@ -77,6 +77,8 @@ class TestTaskPlumeRecorder(TestGeneralRecorder):
         self.predictor.trained = False
         self.predictor.predict.side_effect = lambda x: np.empty(len(x))
         self.predictor.kernel.params = np.array([0, 0])
+        self.predictor.calc_neg_log_likelihood.return_value = \
+            (0, np.array([0, 0]))
         TestGeneralRecorder.setUp(self)
         self.client.get_plume_sensor_outputs.return_value = range(
             self.client.numUAVs)
@@ -130,6 +132,15 @@ class TestTaskPlumeRecorder(TestGeneralRecorder):
         for i in xrange(steps):
             self.recorder.record()
         assert_equal(self.recorder.kernel_params, steps * [[23, 42]])
+
+    def test_records_log_likelihood(self):
+        steps = 4
+        self.predictor.trained = True
+        self.predictor.calc_neg_log_likelihood.return_value = \
+            (-1.0, np.array([0.5, -0.5]))
+        for i in xrange(steps):
+            self.recorder.record()
+        assert_almost_equal(self.recorder.log_likelihood, steps * [1.0])
 
 
 class TestControlsRecorder(object):

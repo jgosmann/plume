@@ -106,6 +106,10 @@ class TaskPlumeRecorder(GeneralRecorder):
             (0, self.predictor.kernel.params.size),
             expectedrows=self.expected_steps,
             title='Parameters of the kernel function in each time step.')
+        self._log_likelihood = self.fileh.createEArray(
+            self.fileh.root, 'log_likelihood', tables.FloatAtom(),
+            (0,), expectedrows=self.expected_steps,
+            title='Parameters of the kernel function in each time step.')
         self._max_gt_value = self.gt_samples.max()
 
     def record(self):
@@ -114,6 +118,7 @@ class TaskPlumeRecorder(GeneralRecorder):
         self._record_reward()
         self._record_xrmse()
         self._record_kernel_params()
+        self._record_log_likelihood()
 
     def _record_plume_measurement(self):
         measurement = np.atleast_2d(self.client.get_plume_sensor_outputs()).T
@@ -144,11 +149,16 @@ class TaskPlumeRecorder(GeneralRecorder):
     def _record_kernel_params(self):
         self._kernel_params.append([self.predictor.kernel.params])
 
+    def _record_log_likelihood(self):
+        self._log_likelihood.append(
+            [-self.predictor.calc_neg_log_likelihood()[0]])
+
     plume_measurements = property(lambda self: self._plume_measurements.read())
     rewards = property(lambda self: self._rewards.read())
     rmse = property(lambda self: self._rmse.read())
     wrmse = property(lambda self: self._wrmse.read())
     kernel_params = property(lambda self: self._kernel_params.read())
+    log_likelihood = property(lambda self: self._log_likelihood.read())
 
 
 class ControlsRecorder(object):
