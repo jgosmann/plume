@@ -68,6 +68,11 @@ def do_simulation_run(i, output_filename, conf, client):
         num_steps = conf['global_conf']['duration_in_steps']
         kernel = conf['kernel'](prediction)
         predictor = conf['predictor'](prediction, kernel)
+        if 'bounds' in conf:
+            predictor.bounds = conf['bounds']
+        if 'priors' in conf:
+            for i in range(conf['priors']):
+                predictor.priors[i] = conf['prior'](prediction)
         behavior = conf['behavior'](behaviors, predictor=predictor)
 
         client = ControlsRecorder(fileh, client, num_steps)

@@ -101,6 +101,11 @@ class TaskPlumeRecorder(GeneralRecorder):
             self.fileh.root, 'wrmse', tables.FloatAtom(), (0,),
             expectedrows=self.expected_steps,
             title='Weighted root mean square error in each time step.')
+        self._kernel_params = self.fileh.createEArray(
+            self.fileh.root, 'kernel_params', tables.FloatAtom(),
+            (0, self.predictor.kernel.params.size),
+            expectedrows=self.expected_steps,
+            title='Parameters of the kernel function in each time step.')
         self._max_gt_value = self.gt_samples.max()
 
     def record(self):
@@ -108,6 +113,7 @@ class TaskPlumeRecorder(GeneralRecorder):
         self._record_plume_measurement()
         self._record_reward()
         self._record_xrmse()
+        self._record_kernel_params()
 
     def _record_plume_measurement(self):
         measurement = np.atleast_2d(self.client.get_plume_sensor_outputs()).T
@@ -135,10 +141,14 @@ class TaskPlumeRecorder(GeneralRecorder):
         self._rmse.append([np.sqrt(np.mean(se))])
         self._wrmse.append([np.sqrt(np.mean(wse))])
 
+    def _record_kernel_params(self):
+        self._kernel_params.append([self.predictor.kernel.params])
+
     plume_measurements = property(lambda self: self._plume_measurements.read())
     rewards = property(lambda self: self._rewards.read())
     rmse = property(lambda self: self._rmse.read())
     wrmse = property(lambda self: self._wrmse.read())
+    kernel_params = property(lambda self: self._kernel_params.read())
 
 
 class ControlsRecorder(object):

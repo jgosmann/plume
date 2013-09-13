@@ -1,6 +1,6 @@
-from hamcrest import assert_that, is_
+from hamcrest import assert_that, equal_to, is_
 import numpy as np
-from numpy.testing import assert_almost_equal
+from numpy.testing import assert_almost_equal, assert_equal
 
 import plume.prediction
 from plume.prediction import ExponentialKernel, RBFKernel
@@ -41,6 +41,24 @@ class TestRBFKernel(object):
         actual = RBFKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
         assert_almost_equal(actual, expected)
 
+    def test_param_derivatives(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([7.22981794e-04, 2.79498988e-06])
+        actual = RBFKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_can_get_params_as_array(self):
+        kernel = RBFKernel(lengthscale=0.6, variance=0.75)
+        assert_equal(kernel.get_params(), np.array([0.6, 0.75]))
+        assert_equal(kernel.params, np.array([0.6, 0.75]))
+
+    def test_can_set_params_as_array(self):
+        kernel = RBFKernel(lengthscale=0.6, variance=0.75)
+        kernel.set_params(np.array([1.2, 0.5]))
+        assert_that(kernel.lengthscale, is_(equal_to(1.2)))
+        assert_that(kernel.variance, is_(equal_to(0.5)))
+
 
 class TestExponentialKernel(object):
     def test_kernel(self):
@@ -76,6 +94,24 @@ class TestExponentialKernel(object):
         expected = np.array([0.018052663641012889, 0.0050534602493140998])
         actual = ExponentialKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
         assert_almost_equal(actual, expected)
+
+    def test_param_derivatives(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([0.01805266, 0.00505346])
+        actual = ExponentialKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_can_get_params_as_array(self):
+        kernel = ExponentialKernel(lengthscale=0.6, variance=0.75)
+        assert_equal(kernel.get_params(), np.array([0.6, 0.75]))
+        assert_equal(kernel.params, np.array([0.6, 0.75]))
+
+    def test_can_set_params_as_array(self):
+        kernel = ExponentialKernel(lengthscale=0.6, variance=0.75)
+        kernel.set_params(np.array([1.2, 0.5]))
+        assert_that(kernel.lengthscale, is_(equal_to(1.2)))
+        assert_that(kernel.variance, is_(equal_to(0.5)))
 
 
 class TestOnlineGP(object):
@@ -144,3 +180,48 @@ class TestOnlineGP(object):
         unused, unused, unused, actual = self.gp.predict(
             x_star, eval_MSE=True, eval_derivatives=True)
         assert_almost_equal(actual, expected)
+
+    def test_can_calculate_neg_log_likelihood(self):
+        x = np.array([[-4, -2, -0.5, 0, 2]]).T
+        y = np.array([[-2, 0, 1, 2, -1]]).T
+        self.gp.fit(x, y)
+        actual = self.gp.calc_neg_log_likelihood()
+        expected = (8.51911832, np.array([0.76088728, -0.49230927]))
+        assert_almost_equal(actual[0], expected[0])
+        assert_almost_equal(actual[1], expected[1])
+
+
+class TestLikelihoodGP(object):
+    def setUp(self):
+        self.gp = plume.prediction.LikelihoodGP(
+            plume.prediction.RBFKernel(1.0), noise_var=0.5)
+        self.gp.priors[0] = plume.prediction.GaussianLogPrior(0.5, 1.0)
+        x = np.array([[-4, -2, -0.5, 0, 2]]).T
+        y = np.array([[-2, 0, 1, 2, -1]]).T
+        self.gp.fit(x, y)
+
+    def test_can_predict(self):
+        x_test = np.array([[-3, -1, 1, 4]]).T
+        expected = np.array(
+            [[-0.50845387, 0.46036866, 0.26117605, -0.01261526]]).T
+        actual = self.gp.predict(x_test)
+        assert_almost_equal(actual, expected)
+
+    def test_can_calculate_neg_log_likelihood(self):
+        expected = (9.3495487653878691,
+                    np.array([1.50581184e-05, 9.73710450e-06]))
+        actual = self.gp.calc_neg_log_likelihood()
+        assert_almost_equal(expected[0], actual[0])
+        assert_almost_equal(expected[1], actual[1])
+
+    def test_optimizes_kernel_params(self):
+        expected = np.array([0.7032695, 1.17616655])
+        actual = self.gp.kernel.params
+        assert_almost_equal(expected, actual)
+
+    def test_add_observations_retrains_as_needed(self):
+        x = np.array([[-3.5, -2.7, -1, 0.5, 1.25]]).T
+        y = np.array([[0, -0.5, 0.8, 1, 0]]).T
+        self.gp.add_observations(x, y)
+        expected = np.array([0.9766916, 0.57622054])
+        assert_almost_equal(self.gp.kernel.params, expected)

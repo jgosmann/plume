@@ -2,6 +2,7 @@ import warnings
 
 import numpy as np
 from numpy.linalg import cholesky, inv, linalg
+from scipy.optimize import fmin_l_bfgs_b
 
 from nputil import GrowingArray, Growing2dArray, meshgrid_nd
 
@@ -10,6 +11,14 @@ class RBFKernel(object):
     def __init__(self, lengthscale, variance=1.0):
         self.lengthscale = lengthscale
         self.variance = variance
+
+    def get_params(self):
+        return np.array([self.lengthscale, self.variance])
+
+    def set_params(self, values):
+        self.lengthscale, self.variance = values
+
+    params = property(get_params, set_params)
 
     def __call__(self, x1, x2, eval_derivative=False):
         """Returns the Gram matrix for the points given in x1 and x1.
@@ -34,14 +43,12 @@ class RBFKernel(object):
             np.sum(np.square(x1), 1) + np.sum(np.square(x2), 1))
         return self.variance * np.exp(-0.5 * d / self.lengthscale ** 2)
 
-    def variance_derivative(self, x1, x2):
+    def param_derivatives(self, x1, x2):
         d = self._calc_distance(x1, x2)
-        return np.exp(-0.5 * d / self.lengthscale ** 2)
-
-    def lengthscale_derivative(self, x1, x2):
-        d = self._calc_distance(x1, x2)
-        return 2 * self.variance * d / (self.lengthscale ** 3) * np.exp(
-            -0.5 * d / self.lengthscale ** 2)
+        variance_deriv = np.exp(-0.5 * d / self.lengthscale ** 2)
+        lengthscale_deriv = 2 * self.variance * d / (self.lengthscale ** 3) * \
+            variance_deriv
+        return [lengthscale_deriv, variance_deriv]
 
     def _calc_distance(self, x1, x2):
         return -2 * np.dot(x1, x2.T) + (
@@ -53,6 +60,14 @@ class ExponentialKernel(object):
     def __init__(self, lengthscale, variance=1.0):
         self.lengthscale = lengthscale
         self.variance = variance
+
+    def get_params(self):
+        return np.array([self.lengthscale, self.variance])
+
+    def set_params(self, values):
+        self.lengthscale, self.variance = values
+
+    params = property(get_params, set_params)
 
     def __call__(self, x1, x2, eval_derivative=False):
         d = self._calc_distance(x1, x2)
@@ -71,19 +86,38 @@ class ExponentialKernel(object):
         d = np.sqrt(np.sum((x1 - x2) ** 2, axis=1))
         return self.variance * np.exp(-d / self.lengthscale)
 
-    def variance_derivative(self, x1, x2):
+    def param_derivatives(self, x1, x2):
         d = self._calc_distance(x1, x2)
-        return np.exp(-0.5 * d / self.lengthscale ** 2)
-
-    def lengthscale_derivative(self, x1, x2):
-        d = self._calc_distance(x1, x2)
-        return self.variance * d / (self.lengthscale ** 2) * np.exp(
-            -d / self.lengthscale)
+        variance_deriv = np.exp(-d / self.lengthscale)
+        lengthscale_deriv = self.variance * d / (self.lengthscale ** 2) * \
+            variance_deriv
+        return [lengthscale_deriv, variance_deriv]
 
     def _calc_distance(self, x1, x2):
-        return -2 * np.dot(x1, x2.T) + (
+        return np.sqrt(-2 * np.dot(x1, x2.T) + (
             np.sum(np.square(x1), 1)[:, None] +
-            np.sum(np.square(x2), 1)[None, :])
+            np.sum(np.square(x2), 1)[None, :]))
+
+
+class UniformLogPrior(object):
+    def __call__(self, x):
+        return 0
+
+    def derivative(self, x):
+        return 0
+
+
+class GaussianLogPrior(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, x):
+        return -0.5 * ((x - self.mean) / self.std) ** 2 - np.log(self.std) - \
+            0.5 * np.log(2 * np.pi)
+
+    def derivative(self, x):
+        return -(x - self.mean) / self.std
 
 
 class OnlineGP(object):
@@ -198,6 +232,76 @@ class OnlineGP(object):
                     print jitter
                     jitter *= 10.0
         raise linalg.LinAlgError('Singular matrix despite jitter.')
+
+    def calc_neg_log_likelihood(self):
+        svs = np.dot(self.L_inv.data, self.y_train.data)
+        log_likelihood = -0.5 * np.dot(svs.T, svs) + \
+            np.sum(np.log(np.diag(self.L_inv.data))) - \
+            0.5 * len(self.y_train.data) * np.log(2 * np.pi)
+
+        alpha = np.dot(self.L_inv.data.T, svs)
+        grad_weighting = np.dot(alpha, alpha.T) - self.K_inv
+        kernel_derivative = np.array([
+            0.5 * np.sum(np.einsum('ij,ji->i', grad_weighting, param_deriv))
+            for param_deriv in self.kernel.param_derivatives(
+                self.x_train.data, self.x_train.data)])
+
+        return -np.squeeze(log_likelihood), -kernel_derivative
+
+
+class LikelihoodGP(object):
+    def __init__(self, kernel, noise_var=1.0, expected_samples=100):
+        self.priors = [UniformLogPrior() for i in xrange(len(kernel.params))]
+        self.bounds = [(None, None)] * len(kernel.params)
+        self.kernel = kernel
+        self.noise_var = noise_var
+        self.expected_samples = expected_samples
+        self.gp = OnlineGP(self.kernel, self.noise_var, self.expected_samples)
+        self.neg_log_likelihood = None
+
+    trained = property(lambda self: self.gp.trained)
+
+    def fit(self, x_train, y_train):
+        params, unused, unused = fmin_l_bfgs_b(
+            self._optimization_fn, self.kernel.params,
+            args=(x_train, y_train), bounds=self.bounds)
+        self.kernel.params = params
+        self.gp.fit(x_train, y_train)
+        self.neg_log_likelihood = self._calc_neg_log_likelihood()
+
+    def _optimization_fn(self, params, x_train, y_train):
+        self.kernel.params = params
+        self.gp.fit(x_train, y_train)
+        print self._calc_neg_log_likelihood()
+        return self._calc_neg_log_likelihood()
+
+    def predict(self, x, eval_MSE=False, eval_derivatives=False):
+        return self.gp.predict(x, eval_MSE, eval_derivatives)
+
+    def add_observations(self, x, y):
+        if not self.trained:
+            self.fit(x, y)
+            return
+
+        self.gp.add_observations(x, y)
+        new_neg_log_likelihood = self._calc_neg_log_likelihood()
+        if new_neg_log_likelihood[0] > self.neg_log_likelihood[0]:
+            self.fit(self.gp.x_train.data, self.gp.y_train.data)
+            self.neg_log_likelihood = self._calc_neg_log_likelihood()
+        else:
+            self.neg_log_likelihood = new_neg_log_likelihood
+
+    def calc_neg_log_likelihood(self):
+        return self.neg_log_likelihood
+
+    def _calc_neg_log_likelihood(self):
+        gp_neg_log_likelihood, gp_neg_deriv = self.gp.calc_neg_log_likelihood()
+        prior_log_likelihood = np.sum([prior(theta) for prior, theta in zip(
+            self.priors, self.kernel.params)])
+        prior_deriv = np.sum([prior.derivative(theta) for prior, theta in zip(
+            self.priors, self.kernel.params)])
+        return gp_neg_log_likelihood - prior_log_likelihood, \
+            gp_neg_deriv - prior_deriv
 
 
 class NumericalStabilityWarning(RuntimeWarning):
