@@ -98,9 +98,17 @@ class TestExponentialKernel(object):
     def test_param_derivatives(self):
         x1 = np.array([[1, 1, 1], [1, 2, 1]])
         x2 = np.array([[1, 2, 3], [4, 2, 1]])
-        expected = np.array([0.01805266, 0.00505346])
-        actual = ExponentialKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
-        assert_almost_equal(actual, expected)
+        expected = (
+            np.array(
+                [[0.11213051,  0.03387083],
+                 [0.14864164,  0.04211217]]),
+            np.array(
+                [[0.02407022,  0.00514123],
+                 [0.03567399,  0.00673795]]))
+        actual = self._create_kernel(
+            lengthscale=0.6, variance=0.75).param_derivatives(x1, x2)
+        assert_almost_equal(actual[0], expected[0])
+        assert_almost_equal(actual[1], expected[1])
 
     def test_can_get_params_as_array(self):
         kernel = ExponentialKernel(lengthscale=0.6, variance=0.75)
