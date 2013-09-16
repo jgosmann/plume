@@ -100,13 +100,11 @@ class ExponentialKernel(object):
 
 
 class AnisotropicExponentialKernel(object):
-    # FIXME better name for projection_L as the projection matrix is already
-    # inverted but this matrix is not.
-    def __init__(self, projection_L, variance=1.0):
-        assert projection_L.shape[0] == projection_L.shape[1]
-        self.num_dim = projection_L.shape[0]
+    def __init__(self, lengthscale_mat, variance=1.0):
+        assert lengthscale_mat.shape[0] == lengthscale_mat.shape[1]
+        self.num_dim = lengthscale_mat.shape[0]
         self.params = np.concatenate((
-            projection_L[np.tril_indices_from(projection_L)],
+            lengthscale_mat[np.tril_indices_from(lengthscale_mat)],
             np.array([variance])))
 
     def get_params(self):
