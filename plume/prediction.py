@@ -74,7 +74,7 @@ class ExponentialKernel(object):
         res = self.variance * np.exp(-d / self.lengthscale)
         if eval_derivative:
             s = x1[:, None, :] - x2[None, :, :]
-            der = -2.0 / d[:, :, None] / self.lengthscale * s * res[:, :, None]
+            der = -s / d[:, :, None] / self.lengthscale * res[:, :, None]
             return res, der
         else:
             return res
