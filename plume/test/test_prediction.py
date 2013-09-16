@@ -3,7 +3,8 @@ import numpy as np
 from numpy.testing import assert_almost_equal, assert_equal
 
 import plume.prediction
-from plume.prediction import ExponentialKernel, RBFKernel
+from plume.prediction import AnisotropicExponentialKernel, ExponentialKernel, \
+    RBFKernel
 
 
 class TestRBFKernel(object):
@@ -67,7 +68,7 @@ class TestExponentialKernel(object):
         expected = np.array([
             [0.018052663641012889, 0.0038559231230571806],
             [0.026755495010439296, 0.0050534602493140998]])
-        actual = ExponentialKernel(lengthscale=0.6, variance=0.75)(x1, x2)
+        actual = self._create_kernel(lengthscale=0.6, variance=0.75)(x1, x2)
         assert_almost_equal(actual, expected)
 
     def test_kernel_derivative(self):
@@ -78,47 +79,92 @@ class TestExponentialKernel(object):
              [0.00609675, 0.00203225, -0.0]],
             [[0.0, 0.0, 0.0445924916840655],
              [0.008422433748856834, 0.0, 0.0]]])
-        unused, actual = ExponentialKernel(lengthscale=0.6, variance=0.75)(
+        unused, actual = self._create_kernel(lengthscale=0.6, variance=0.75)(
             x1, x2, eval_derivative=True)
         assert_almost_equal(actual, expected)
 
     def test_diag_symmetric(self):
         x = np.array([[1, 1, 1], [1, 2, 1]])
         expected = 0.75 * np.ones(2)
-        actual = ExponentialKernel(lengthscale=0.6, variance=0.75).diag(x, x)
+        actual = self._create_kernel(lengthscale=0.6, variance=0.75).diag(x, x)
         assert_almost_equal(actual, expected)
 
     def test_diag(self):
         x1 = np.array([[1, 1, 1], [1, 2, 1]])
         x2 = np.array([[1, 2, 3], [4, 2, 1]])
         expected = np.array([0.018052663641012889, 0.0050534602493140998])
-        actual = ExponentialKernel(lengthscale=0.6, variance=0.75).diag(x1, x2)
+        actual = self._create_kernel(lengthscale=0.6, variance=0.75).diag(
+            x1, x2)
         assert_almost_equal(actual, expected)
 
     def test_param_derivatives(self):
         x1 = np.array([[1, 1, 1], [1, 2, 1]])
         x2 = np.array([[1, 2, 3], [4, 2, 1]])
-        expected = (
-            np.array(
-                [[0.11213051,  0.03387083],
-                 [0.14864164,  0.04211217]]),
-            np.array(
-                [[0.02407022,  0.00514123],
-                 [0.03567399,  0.00673795]]))
+        expected = np.array([
+            [[0.11213051,  0.03387083],
+             [0.14864164,  0.04211217]],
+            [[0.02407022,  0.00514123],
+             [0.03567399,  0.00673795]]])
         actual = self._create_kernel(
             lengthscale=0.6, variance=0.75).param_derivatives(x1, x2)
-        assert_almost_equal(actual[0], expected[0])
-        assert_almost_equal(actual[1], expected[1])
+        assert_almost_equal(actual, expected)
 
     def test_can_get_params_as_array(self):
-        kernel = ExponentialKernel(lengthscale=0.6, variance=0.75)
+        kernel = self._create_kernel(lengthscale=0.6, variance=0.75)
         assert_equal(kernel.get_params(), np.array([0.6, 0.75]))
         assert_equal(kernel.params, np.array([0.6, 0.75]))
 
     def test_can_set_params_as_array(self):
-        kernel = ExponentialKernel(lengthscale=0.6, variance=0.75)
+        kernel = self._create_kernel(lengthscale=0.6, variance=0.75)
         kernel.set_params(np.array([1.2, 0.5]))
         assert_that(kernel.lengthscale, is_(equal_to(1.2)))
+        assert_that(kernel.variance, is_(equal_to(0.5)))
+
+    def _create_kernel(self, lengthscale, variance):
+        return ExponentialKernel(lengthscale=lengthscale, variance=variance)
+
+
+class TestAnisotropicExponentialKernel(TestExponentialKernel):
+    def _create_kernel(self, lengthscale, variance):
+        projection_L = np.diag(np.array(3 * [np.sqrt(lengthscale)]))
+        return AnisotropicExponentialKernel(projection_L, variance)
+
+    def test_param_derivatives(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([
+            # lengthscale parameters
+            [[0.0, -0.01574174],
+             [-0.17270598, -0.10873315]],
+            [[-0.03474237, -0.01836536],
+             [-0.20149031, -0.04349326]],
+            [[-0.1042271, -0.01049449],
+             [-0.11513732, 0.0]],
+            [[-0.06948473, -0.02885986],
+             [-0.31662763, -0.02174663]],
+            [[-0.17371184, -0.01311812],
+             [-0.14392165, 0.0]],
+            [[-0.27793894, -0.01049449],
+             [-0.11513732, -0.0]],
+            # variance
+            [[0.02407022, 0.00514123],
+             [0.03567399, 0.00673795]]])
+        actual = self._create_kernel(
+            lengthscale=0.6, variance=0.75).param_derivatives(x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_can_get_params_as_array(self):
+        kernel = self._create_kernel(lengthscale=0.6, variance=0.75)
+        l = np.sqrt(0.6)
+        expected = np.array([l, 0.0, l, 0.0, 0.0, l, 0.75])
+        assert_equal(kernel.get_params(), expected)
+        assert_equal(kernel.params, expected)
+
+    def test_can_set_params_as_array(self):
+        kernel = self._create_kernel(lengthscale=0.6, variance=0.75)
+        kernel.set_params(np.array([1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.5]))
+        assert_equal(
+            kernel.lengthscales, np.array([1.2, 1.1, 1.0, 0.9, 0.8, 0.7]))
         assert_that(kernel.variance, is_(equal_to(0.5)))
 
 

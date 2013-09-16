@@ -99,6 +99,77 @@ class ExponentialKernel(object):
             np.sum(np.square(x2), 1)[None, :]))
 
 
+class AnisotropicExponentialKernel(object):
+    # FIXME better name for projection_L as the projection matrix is already
+    # inverted but this matrix is not.
+    def __init__(self, projection_L, variance=1.0):
+        assert projection_L.shape[0] == projection_L.shape[1]
+        self.num_dim = projection_L.shape[0]
+        self.params = np.concatenate((
+            projection_L[np.tril_indices_from(projection_L)],
+            np.array([variance])))
+
+    def get_params(self):
+        return np.concatenate((self.lengthscales, np.array([self.variance])))
+
+    def set_params(self, values):
+        self.lengthscales = values[:-1]
+        self.variance = values[-1]
+        L = np.zeros((self.num_dim, self.num_dim))
+        L[np.tril_indices_from(L)] = self.lengthscales
+        self.L_inv = inv(L)
+        self.projection = np.dot(self.L_inv.T, self.L_inv)
+
+    params = property(get_params, set_params)
+
+    def __call__(self, x1, x2, eval_derivative=False):
+        pd = self._calc_projected_distance(x1, x2)
+        res = self.variance * np.exp(-pd)
+        if eval_derivative:
+            sq_proj = np.dot(self.projection, self.projection)
+            x1_proj = np.dot(x1, sq_proj)
+            x2_proj = np.dot(x2, sq_proj)
+            s = x1_proj[:, None, :] - x2_proj[None, :, :]
+            der = -s / pd[:, :, None] * res[:, :, None]
+            return res, der
+        else:
+            return res
+
+    def diag(self, x1, x2):
+        if x1 is x2:
+            return self.variance * np.ones(len(x1))
+
+        pd = np.sqrt(np.sum(np.einsum(
+            'ij,kj->ki', self.projection, x1 - x2) ** 2, axis=1))
+        return self.variance * np.exp(-pd)
+
+    def param_derivatives(self, x1, x2):
+        pd = self._calc_projected_distance(x1, x2)
+        variance_deriv = np.exp(-pd)
+
+        proj_deriv_component = -np.einsum(
+            'ik,jl->ijkl', self.projection, self.L_inv.T)
+        proj_deriv = np.einsum(
+            'ak,ijkl->ijal', self.projection,
+            proj_deriv_component + np.transpose(
+                proj_deriv_component, (0, 1, 3, 2)))
+        x1_proj_sq_norm = np.einsum('ak,ijkl,bl->ijab', x1, proj_deriv, x1)
+        x2_proj_sq_norm = np.einsum('ak,ijkl,bl->ijab', x2, proj_deriv, x2)
+
+        lengthscale_deriv = -self.variance * variance_deriv / pd * (
+            x1_proj_sq_norm - x2_proj_sq_norm)
+        return np.concatenate((
+            lengthscale_deriv[np.tril_indices(self.num_dim)],
+            variance_deriv[None, :, :]))
+
+    def _calc_projected_distance(self, x1, x2):
+        x1_proj = np.einsum('ij,kj->ki', self.projection, x1)
+        x2_proj = np.einsum('ij,kj->ki', self.projection, x2)
+        return np.sqrt(-2 * np.dot(x1_proj, x2_proj.T) + (
+            np.sum(np.square(x1_proj), 1)[:, None] +
+            np.sum(np.square(x2_proj), 1)[None, :]))
+
+
 class UniformLogPrior(object):
     def __call__(self, x):
         return 0
