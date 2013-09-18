@@ -1,3 +1,4 @@
+import logging
 import warnings
 
 import numpy as np
@@ -5,6 +6,8 @@ from numpy.linalg import cholesky, inv, linalg
 from scipy.optimize import fmin_l_bfgs_b
 
 from nputil import GrowingArray, Growing2dArray, meshgrid_nd
+
+logger = logging.getLogger(__name__)
 
 
 class RBFKernel(object):
@@ -341,6 +344,8 @@ class LikelihoodGP(object):
         self.kernel.params = params
         self.gp.fit(x_train, y_train)
         self.neg_log_likelihood = self._calc_neg_log_likelihood()
+        logger.info('Log likelihood: {}, params: {}'.format(
+            -self.neg_log_likelihood[0], self.kernel.params))
 
     def _optimization_fn(self, params, x_train, y_train):
         self.kernel.params = params
