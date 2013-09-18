@@ -152,10 +152,10 @@ class UCBBased(object):
             wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
             xs = np.array([x[wp_idx], y[wp_idx], z[wp_idx]])
 
-            x, unused, unused = fmin_l_bfgs_b(
+            xx, unused, unused = fmin_l_bfgs_b(
                 lambda x, s: self.calc_neg_ucb(x, s), xs,
                 args=(noisy_states,), bounds=self.get_effective_area())
-            self.targets = np.array(len(noisy_states) * [x])
+            self.targets = np.array(len(noisy_states) * [xx])
 
             pred, mse, (x, y, z) = predict_on_volume(
                 self.predictor, self.get_effective_area(),
@@ -181,7 +181,7 @@ class UCBBased(object):
                 extent=self.get_effective_area()[:2].flatten(), origin='lower')
             plt.colorbar()
             #plt.scatter(y[wp_idx], x[wp_idx], color='g')
-            plt.scatter(res.x[1], res.x[0], color='g')
+            plt.scatter(xx[1], xx[0], color='g')
             plt.scatter(xs[1], xs[0], color='r')
             plt.scatter(noisy_states[0].y, noisy_states[0].x)
 
@@ -200,7 +200,7 @@ class UCBBased(object):
                 extent=self.get_effective_area()[:2].flatten(), origin='lower')
             plt.colorbar()
             #plt.scatter(y[wp_idx], x[wp_idx], color='g')
-            plt.scatter(res.x[1], res.x[0], color='g')
+            plt.scatter(xx[1], xx[0], color='g')
             plt.scatter(xs[1], xs[0], color='r')
             plt.scatter(noisy_states[0].y, noisy_states[0].x)
 
@@ -211,7 +211,7 @@ class UCBBased(object):
                 #extent=self.get_effective_area()[:2].flatten(), origin='lower')
             #plt.colorbar()
             ##plt.scatter(y[wp_idx], x[wp_idx], color='g')
-            #plt.scatter(res.x[1], res.x[0], color='g')
+            #plt.scatter(xx[1], xx[0], color='g')
             #plt.scatter(xs[1], xs[0], color='r')
             #plt.scatter(noisy_states[0].y, noisy_states[0].x)
 
@@ -222,7 +222,7 @@ class UCBBased(object):
                 extent=self.get_effective_area()[:2].flatten(), origin='lower')
             plt.colorbar()
             #plt.scatter(y[wp_idx], x[wp_idx], color='g')
-            plt.scatter(res.x[1], res.x[0], color='g')
+            plt.scatter(xx[1], xx[0], color='g')
             plt.scatter(xs[1], xs[0], color='r')
             plt.scatter(noisy_states[0].y, noisy_states[0].x)
 
