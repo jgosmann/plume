@@ -349,7 +349,12 @@ class LikelihoodGP(object):
 
     def _optimization_fn(self, params, x_train, y_train):
         self.kernel.params = params
-        self.gp.fit(x_train, y_train)
+        try:
+            self.gp.fit(x_train, y_train)
+        except linalg.LinAlgError:
+            logger.warn(
+                'LinAlgError in likelihood optimization', exc_info=True)
+            return np.inf, -self.neg_log_likelihood[1]
         return self._calc_neg_log_likelihood()
 
     def predict(self, x, eval_MSE=False, eval_derivatives=False):
