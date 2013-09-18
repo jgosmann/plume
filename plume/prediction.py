@@ -309,20 +309,23 @@ class OnlineGP(object):
         raise linalg.LinAlgError(
             'Singular matrix despite jitter of {}.'.format(jitter))
 
-    def calc_neg_log_likelihood(self):
+    def calc_neg_log_likelihood(self, eval_derivative=False):
         svs = np.dot(self.L_inv.data, self.y_train.data)
         log_likelihood = -0.5 * np.dot(svs.T, svs) + \
             np.sum(np.log(np.diag(self.L_inv.data))) - \
             0.5 * len(self.y_train.data) * np.log(2 * np.pi)
 
-        alpha = np.dot(self.L_inv.data.T, svs)
-        grad_weighting = np.dot(alpha, alpha.T) - self.K_inv
-        kernel_derivative = np.array([
-            0.5 * np.sum(np.einsum('ij,ji->i', grad_weighting, param_deriv))
-            for param_deriv in self.kernel.param_derivatives(
-                self.x_train.data, self.x_train.data)])
+        if eval_derivative:
+            alpha = np.dot(self.L_inv.data.T, svs)
+            grad_weighting = np.dot(alpha, alpha.T) - self.K_inv
+            kernel_derivative = np.array([
+                0.5 * np.sum(np.einsum('ij,ji->i', grad_weighting, param_deriv))
+                for param_deriv in self.kernel.param_derivatives(
+                    self.x_train.data, self.x_train.data)])
 
-        return -np.squeeze(log_likelihood), -kernel_derivative
+            return -np.squeeze(log_likelihood), -kernel_derivative
+        else:
+            return -np.squeeze(log_likelihood)
 
 
 class LikelihoodGP(object):
@@ -333,7 +336,7 @@ class LikelihoodGP(object):
         self.noise_var = noise_var
         self.expected_samples = expected_samples
         self.gp = OnlineGP(self.kernel, self.noise_var, self.expected_samples)
-        self.neg_log_likelihood = (-np.inf, np.array([0, 0]))
+        self.neg_log_likelihood = -np.inf
 
     trained = property(lambda self: self.gp.trained)
 
@@ -343,9 +346,10 @@ class LikelihoodGP(object):
             args=(x_train, y_train), bounds=self.bounds)
         self.kernel.params = params
         self.gp.fit(x_train, y_train)
-        self.neg_log_likelihood = self._calc_neg_log_likelihood()
+        self.neg_log_likelihood = self._calc_neg_log_likelihood(
+            eval_derivative=False)
         logger.info('Log likelihood: {}, params: {}'.format(
-            -self.neg_log_likelihood[0], self.kernel.params))
+            -self.neg_log_likelihood, self.kernel.params))
 
     def _optimization_fn(self, params, x_train, y_train):
         self.kernel.params = params
@@ -354,8 +358,8 @@ class LikelihoodGP(object):
         except linalg.LinAlgError:
             logger.warn(
                 'LinAlgError in likelihood optimization', exc_info=True)
-            return np.inf, -self.neg_log_likelihood[1]
-        return self._calc_neg_log_likelihood()
+            return np.inf, np.zeros_like(params)
+        return self._calc_neg_log_likelihood(eval_derivative=True)
 
     def predict(self, x, eval_MSE=False, eval_derivatives=False):
         return self.gp.predict(x, eval_MSE, eval_derivatives)
@@ -366,24 +370,34 @@ class LikelihoodGP(object):
             return
 
         self.gp.add_observations(x, y)
-        new_neg_log_likelihood = self._calc_neg_log_likelihood()
-        if new_neg_log_likelihood[0] > self.neg_log_likelihood[0]:
+        new_neg_log_likelihood = self._calc_neg_log_likelihood(
+            eval_derivative=False)
+        if new_neg_log_likelihood > self.neg_log_likelihood:
             self.fit(self.gp.x_train.data, self.gp.y_train.data)
-            self.neg_log_likelihood = self._calc_neg_log_likelihood()
+            self.neg_log_likelihood = self._calc_neg_log_likelihood(
+                eval_derivative=False)
         else:
             self.neg_log_likelihood = new_neg_log_likelihood
 
-    def calc_neg_log_likelihood(self):
-        return self.neg_log_likelihood
+    def calc_neg_log_likelihood(self, eval_derivative=False):
+        if eval_derivative:
+            return self._calc_neg_log_likelihood(eval_derivative)
+        else:
+            return self.neg_log_likelihood
 
-    def _calc_neg_log_likelihood(self):
-        gp_neg_log_likelihood, gp_neg_deriv = self.gp.calc_neg_log_likelihood()
+    def _calc_neg_log_likelihood(self, eval_derivative):
         prior_log_likelihood = np.sum([prior(theta) for prior, theta in zip(
             self.priors, self.kernel.params)])
-        prior_deriv = np.sum([prior.derivative(theta) for prior, theta in zip(
-            self.priors, self.kernel.params)])
-        return gp_neg_log_likelihood - prior_log_likelihood, \
-            gp_neg_deriv - prior_deriv
+        if eval_derivative:
+            gp_neg_log_likelihood, gp_neg_deriv = \
+                self.gp.calc_neg_log_likelihood(eval_derivative=True)
+            prior_deriv = np.sum([prior.derivative(theta) for prior, theta \
+                in zip(self.priors, self.kernel.params)])
+            return gp_neg_log_likelihood - prior_log_likelihood, \
+                gp_neg_deriv - prior_deriv
+        else:
+            gp_neg_log_likelihood = self.gp.calc_neg_log_likelihood()
+            return gp_neg_log_likelihood - prior_log_likelihood
 
 
 class NumericalStabilityWarning(RuntimeWarning):

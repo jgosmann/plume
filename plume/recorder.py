@@ -151,7 +151,7 @@ class TaskPlumeRecorder(GeneralRecorder):
 
     def _record_log_likelihood(self):
         self._log_likelihood.append(
-            [-self.predictor.calc_neg_log_likelihood()[0]])
+            [-self.predictor.calc_neg_log_likelihood()])
 
     plume_measurements = property(lambda self: self._plume_measurements.read())
     rewards = property(lambda self: self._rewards.read())
