@@ -170,9 +170,9 @@ class AnisotropicExponentialKernel(object):
     def _calc_projected_distance(self, x1, x2):
         x1_proj = np.einsum('ij,kj->ki', self.projection, x1)
         x2_proj = np.einsum('ij,kj->ki', self.projection, x2)
-        return np.sqrt(-2 * np.dot(x1_proj, x2_proj.T) + (
+        return np.sqrt(np.maximum(0, -2 * np.dot(x1_proj, x2_proj.T) + (
             np.sum(np.square(x1_proj), 1)[:, None] +
-            np.sum(np.square(x2_proj), 1)[None, :]))
+            np.sum(np.square(x2_proj), 1)[None, :])))
 
 
 class UniformLogPrior(object):
