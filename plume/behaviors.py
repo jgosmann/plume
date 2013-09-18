@@ -38,7 +38,7 @@ class VelocityTowardsWaypointController(object):
                  [np.sin(psi), np.cos(psi), 0],
                  [0, 0, 1]])
 
-            world_v = 0.25 * np.array(
+            world_v = 0.15 * np.array(
                 [self.maxv, self.maxv, self.max_climb]) * \
                 (targets[uav] - noisy_states[uav].position)
             if norm(world_v[:2]) > self.maxv:
