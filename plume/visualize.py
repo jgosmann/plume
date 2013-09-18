@@ -307,8 +307,14 @@ class PlumeVisualizer(HasTraits):
 
     def calc_estimation(self, data):
         area = self.conf['global_conf']['area']
+        # FIXME code duplication with plume.py
         kernel = self.conf['kernel'](prediction)
         predictor = self.conf['predictor'](prediction, kernel)
+        if 'bounds' in self.conf:
+            predictor.bounds = self.conf['bounds']
+        if 'priors' in self.conf:
+            for i in range(len(self.conf['priors'])):
+                predictor.priors[i] = self.conf['priors'][i](prediction)
         predictor.fit(
             data.root.positions.read()[0, :self.end, :],
             data.root.plume_measurements.read()[0, :self.end])
