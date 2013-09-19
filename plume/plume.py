@@ -57,13 +57,14 @@ class Controller(object):
         self.client.step(self.client.timestep, c)
 
 
-def do_simulation_run(i, output_filename, conf, client):
+def do_simulation_run(trial, output_filename, conf, client):
     with tables.openFile(output_filename, 'w') as fileh:
         tbl = fileh.createVLArray(
             '/', 'conf', tables.ObjectAtom(),
             title='Configuration used to generate the stored data.')
         tbl.append(conf)
-        fileh.createArray('/', 'repeat', [i], title='Number of repeat run.')
+        fileh.createArray(
+            '/', 'repeat', [trial], title='Number of repeat run.')
 
         num_steps = conf['global_conf']['duration_in_steps']
         kernel = conf['kernel'](prediction)
@@ -77,7 +78,7 @@ def do_simulation_run(i, output_filename, conf, client):
 
         client = ControlsRecorder(fileh, client, num_steps)
         controller = Controller(client, behavior)
-        controller.init_new_sim(conf['seedlist'][i])
+        controller.init_new_sim(conf['seedlist'][trial])
 
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
         recorder.init(conf['global_conf']['area'])
