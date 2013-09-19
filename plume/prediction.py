@@ -150,7 +150,7 @@ class AnisotropicExponentialKernel(object):
         variance_deriv = np.exp(-pd)
 
         proj_deriv_component = -np.einsum(
-            'ik,jl->ijkl', self.projection, self.L_inv)
+            'jk,il,lm->ijkm', self.L_inv.T, self.L_inv, self.L_inv)
         proj_deriv = proj_deriv_component + np.transpose(
             proj_deriv_component, (0, 1, 3, 2))
 
