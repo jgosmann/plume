@@ -146,7 +146,7 @@ class UCBBased(object):
             ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
                 self.get_effective_area(), self.grid_resolution)]
             x, y, z = meshgrid_nd(*ogrid)
-            ducb, unused = self.calc_neg_ucb(
+            ducb = self.calc_neg_ucb(
                 np.column_stack((x.flat, y.flat, z.flat)), noisy_states)
             ducb *= -1
             wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
@@ -154,7 +154,8 @@ class UCBBased(object):
 
             x, unused, unused = fmin_l_bfgs_b(
                 lambda x, s: self.calc_neg_ucb(x, s), xs,
-                args=(noisy_states,), bounds=self.get_effective_area())
+                args=(noisy_states,), bounds=self.get_effective_area(),
+                approx_grad=True)
             self.targets = np.array(len(noisy_states) * [x])
 
         return self._controller.get_controls(noisy_states, self.targets)
@@ -217,14 +218,14 @@ class PDUCB(UCBBased):
     def calc_neg_ucb(self, x, noisy_states):
         x = np.atleast_2d(x)
         pos = np.atleast_2d(noisy_states[0].position)
-        pred, pred_derivative, mse, mse_derivative = self.predictor.predict(
-            x, eval_MSE=True, eval_derivatives=True)
-        sq_dist = np.maximum(0, -2 * np.dot(x, pos.T) + (
+        pred, mse = self.predictor.predict(
+            x, eval_MSE=True, eval_derivatives=False)
+        sq_dist = np.squeeze(np.maximum(0, -2 * np.dot(x, pos.T) + (
             np.sum(np.square(x), 1)[:, None] +
-            np.sum(np.square(pos), 1)[None, :]))
+            np.sum(np.square(pos), 1)[None, :])))
         ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
-            self.kappa * np.sqrt(mse)[:, None] + self.gamma * sq_dist
-        ucb_derivative = pred_derivative / (pred + self.epsilon) + \
-            self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
-            self.gamma * 2 * np.sqrt(sq_dist)
-        return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
+            self.kappa * np.sqrt(mse) + self.gamma * sq_dist
+        #ucb_derivative = pred_derivative / (pred + self.epsilon) + \
+            #self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
+            #self.gamma * 2 * np.sqrt(sq_dist)
+        return -np.squeeze(ucb)

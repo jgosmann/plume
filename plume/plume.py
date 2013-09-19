@@ -67,8 +67,9 @@ def do_simulation_run(trial, output_filename, conf, client):
             '/', 'repeat', [trial], title='Number of repeat run.')
 
         num_steps = conf['global_conf']['duration_in_steps']
-        kernel = conf['kernel'](prediction)
-        predictor = conf['predictor'](prediction, kernel)
+        kernel1 = conf['kernel1'](prediction)
+        kernel2 = conf['kernel2'](prediction)
+        predictor = conf['predictor'](prediction, kernel2, kernel1)
         if 'bounds' in conf:
             predictor.bounds = conf['bounds']
         if 'priors' in conf:

@@ -267,7 +267,7 @@ class OnlineGP(object):
         K_obs = self.kernel(x, self.x_train.data)
         B = np.dot(K_obs, self.L_inv.data.T)
         CC_T = self.kernel(x, x) - np.dot(B, B.T) + np.diag(np.repeat(
-            self.noise_var, len(self.x_train.data)) / weighting)
+            self.noise_var, len(x)) / weighting)
         diag_indices = np.diag_indices_from(CC_T)
         CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
 
@@ -406,6 +406,8 @@ class HeuristicGPMixture(object):
             self, kernel_low, kernel_high, noise_var=1.0, gating_var=0.01,
             expected_samples=100):
         # FIXME kernel
+        self.kernel = kernel_low
+        self.trained = False
         self.gp_low = OnlineGP(kernel_low, noise_var, expected_samples)
         self.gp_gating_low = OnlineGP(kernel_low, gating_var, expected_samples)
         self.gp_high = OnlineGP(kernel_high, noise_var, expected_samples)
@@ -414,6 +416,7 @@ class HeuristicGPMixture(object):
         self.p_high = GrowingArray((1,), expected_rows=expected_samples)
 
     def fit(self, x_train, y_train):
+        self.trained = True
         p_high = self._calc_p_high(y_train)
         self.p_high.extend(p_high)
         self.gp_low.fit(x_train, y_train, 1.0 - p_high)
@@ -431,7 +434,8 @@ class HeuristicGPMixture(object):
 
         p_high = np.exp(gating_high[0]) / (
             np.exp(gating_high[0]) + np.exp(gating_low[0]))
-        pred = p_high * high[0] + (1 - p_high) * low[0]
+        pred = np.squeeze(p_high * np.squeeze(high[0]) + (1 - p_high) * np.squeeze(low[0]))
+        p_high = np.squeeze(p_high)
         if eval_MSE:
             if eval_derivatives:
                 low_mse = low[2]
@@ -439,8 +443,8 @@ class HeuristicGPMixture(object):
             else:
                 low_mse = low[1]
                 high_mse = high[1]
-            mse = p_high * (high_mse + (high[0] - pred) ** 2) + \
-                (1 - p_high) * (low_mse + (low[0] - pred) ** 2)
+            mse = p_high * (high_mse + (np.squeeze(high[0]) - pred) ** 2) + \
+                (1 - p_high) * (low_mse + (np.squeeze(low[0]) - pred) ** 2)
 
         if eval_derivatives:
             # FIXME
@@ -454,6 +458,7 @@ class HeuristicGPMixture(object):
     def add_observations(self, x, y):
         p_high = self._calc_p_high(y)
         self.p_high.extend(p_high)
+        p_high = np.squeeze(p_high)
         self.gp_low.add_observations(x, y, 1.0 - p_high)
         self.gp_high.add_observations(x, y, p_high)
         self.gp_gating_low.add_observations(x, 1.0 - p_high)
@@ -462,6 +467,9 @@ class HeuristicGPMixture(object):
     def _calc_p_high(self, y):
         # FIXME hyperparameters should be ajustable.
         return 1.0 / (1.0 + np.exp(-10.0 * (y - 0.3)))
+
+    def calc_neg_log_likelihood(self, eval_derivative=False):
+        return 0
 
 
 class NumericalStabilityWarning(RuntimeWarning):
