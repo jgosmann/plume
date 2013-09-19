@@ -141,8 +141,7 @@ def main():
             qrsim.expect(r'Listening on port: (\d+)')
             port = int(qrsim.match.group(1))
             client.connect_to('127.0.0.1', port)
-        num_steps = conf['global_conf']['duration_in_steps']
-        client.init(conf['task'], num_steps)
+        client.init(conf['task'])
 
         clean = True
         for i in xrange(conf['repeats']):
