@@ -228,3 +228,45 @@ class PDUCB(UCBBased):
             self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
         return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
+
+
+class NDUCB(UCBBased):
+    def __init__(
+            self, margin, predictor, grid_resolution, area, kappa, gamma,
+            epsilon, target_precision, duration_in_steps=1000):
+        super(NDUCB, self).__init__(
+            margin, predictor, grid_resolution, area, target_precision,
+            duration_in_steps)
+        self.kappa = kappa
+        self.gamma = gamma
+        self.epsilon = epsilon
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(margin=%(margin)r, ' \
+            'predictor=%(predictor)r, grid_resolution=%(grid_resolution)r, ' \
+            'area=%(area)r, kappa=%(kappa)r, gamma=%(gamma)r, ' \
+            'epsilon=%(epsilon)r, ' \
+            'target_precision=%(target_precision)r)' % self.__dict__
+
+    def calc_neg_ucb(self, x, noisy_states):
+        x = np.atleast_2d(x)
+        pos = np.atleast_2d(noisy_states[0].position)
+        pred, pred_derivative, mse, mse_derivative = self.predictor.predict(
+            x, eval_MSE=True, eval_derivatives=True)
+        norm_factor = self.predictor.y_train.data.max()
+        if norm_factor > 0:
+            pred /= norm_factor
+            pred_derivative /= norm_factor
+        mse_norm_factor = self.predictor.kernel.variance + \
+            self.predictor.noise_var
+        mse /= mse_norm_factor
+        mse_derivative /= norm_factor
+        sq_dist = np.maximum(0, -2 * np.dot(x, pos.T) + (
+            np.sum(np.square(x), 1)[:, None] +
+            np.sum(np.square(pos), 1)[None, :]))
+        ucb = np.maximum(0, pred) + \
+            self.kappa * np.sqrt(mse)[:, None] + self.gamma * sq_dist
+        ucb_derivative = pred_derivative + \
+            self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
+            self.gamma * 2 * np.sqrt(sq_dist)
+        return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
