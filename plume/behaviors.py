@@ -230,6 +230,42 @@ class PDUCB(UCBBased):
         return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
 
 
+class PDUCB_log(UCBBased):
+    def __init__(
+            self, margin, predictor, grid_resolution, area, kappa, gamma,
+            epsilon, target_precision, duration_in_steps=1000):
+        super(PDUCB, self).__init__(
+            margin, predictor, grid_resolution, area, target_precision,
+            duration_in_steps)
+        self.kappa = kappa
+        self.gamma = gamma
+        self.epsilon = epsilon
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(margin=%(margin)r, ' \
+            'predictor=%(predictor)r, grid_resolution=%(grid_resolution)r, ' \
+            'area=%(area)r, kappa=%(kappa)r, gamma=%(gamma)r, ' \
+            'epsilon=%(epsilon)r, ' \
+            'target_precision=%(target_precision)r)' % self.__dict__
+
+    def calc_neg_ucb(self, x, noisy_states):
+        x = np.atleast_2d(x)
+        pos = np.atleast_2d(noisy_states[0].position)
+        pred, pred_derivative, mse, mse_derivative = self.predictor.predict(
+            x, eval_MSE=True, eval_derivatives=True)
+        sq_dist = np.maximum(0, -2 * np.dot(x, pos.T) + (
+            np.sum(np.square(x), 1)[:, None] +
+            np.sum(np.square(pos), 1)[None, :]))
+        ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
+            self.kappa * np.log(np.sqrt(mse) + self.epsilon)[:, None] + \
+            self.gamma * sq_dist
+        ucb_derivative = pred_derivative / (pred + self.epsilon) + \
+            self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] / \
+            (np.sqrt(mse) + self.epsilon)[:, None] + \
+            self.gamma * 2 * np.sqrt(sq_dist)
+        return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
+
+
 class NDUCB(UCBBased):
     def __init__(
             self, margin, predictor, grid_resolution, area, kappa, gamma,
