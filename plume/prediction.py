@@ -102,7 +102,7 @@ class ExponentialKernel(object):
             np.sum(np.square(x2), 1)[None, :]))
 
 
-class Matern32(object):
+class Matern32Kernel(object):
     def __init__(self, lengthscale, variance=1.0):
         self.lengthscale = lengthscale
         self.variance = variance
@@ -149,7 +149,7 @@ class Matern32(object):
             np.sum(np.square(x2), 1)[None, :]))
 
 
-class Matern52(object):
+class Matern52Kernel(object):
     def __init__(self, lengthscale, variance=1.0):
         self.lengthscale = lengthscale
         self.variance = variance
