@@ -102,6 +102,103 @@ class ExponentialKernel(object):
             np.sum(np.square(x2), 1)[None, :]))
 
 
+class Matern32(object):
+    def __init__(self, lengthscale, variance=1.0):
+        self.lengthscale = lengthscale
+        self.variance = variance
+
+    def get_params(self):
+        return np.array([self.lengthscale, self.variance])
+
+    def set_params(self, values):
+        self.lengthscale, self.variance = values
+
+    params = property(get_params, set_params)
+
+    def __call__(self, x1, x2, eval_derivative=False):
+        scaled_d = np.sqrt(3) * self._calc_distance(x1, x2) / self.lengthscale
+        exp_term = np.exp(-scaled_d)
+        res = self.variance * (1 + scaled_d) * exp_term
+        if eval_derivative:
+            s = x1[:, None, :] - x2[None, :, :]
+            der = -3 * s / (self.lengthscale ** 2) * self.variance * \
+                exp_term[:, :, None]
+            return res, der
+        else:
+            return res
+
+    def diag(self, x1, x2):
+        if x1 is x2:
+            return self.variance * np.ones(len(x1))
+
+        d = np.sqrt(np.sum((x1 - x2) ** 2, axis=1))
+        scaled_d = np.sqrt(3) * d / self.lengthscale
+        return self.variance * (1 + scaled_d) * np.exp(-scaled_d)
+
+    def param_derivatives(self, x1, x2):
+        scaled_d = np.sqrt(3) * self._calc_distance(x1, x2) / self.lengthscale
+        exp_term = np.exp(-scaled_d)
+        variance_deriv = (1 + scaled_d) * exp_term
+        lengthscale_deriv = self.variance / self.lengthscale * \
+            (scaled_d ** 2) * exp_term
+        return [lengthscale_deriv, variance_deriv]
+
+    def _calc_distance(self, x1, x2):
+        return np.sqrt(-2 * np.dot(x1, x2.T) + (
+            np.sum(np.square(x1), 1)[:, None] +
+            np.sum(np.square(x2), 1)[None, :]))
+
+
+class Matern52(object):
+    def __init__(self, lengthscale, variance=1.0):
+        self.lengthscale = lengthscale
+        self.variance = variance
+
+    def get_params(self):
+        return np.array([self.lengthscale, self.variance])
+
+    def set_params(self, values):
+        self.lengthscale, self.variance = values
+
+    params = property(get_params, set_params)
+
+    def __call__(self, x1, x2, eval_derivative=False):
+        d = self._calc_distance(x1, x2)
+        scaled_d = np.sqrt(5) * d / self.lengthscale
+        exp_term = np.exp(-scaled_d)
+        res = self.variance * (1 + scaled_d + scaled_d ** 2 / 3.0) * exp_term
+        if eval_derivative:
+            s = x1[:, None, :] - x2[None, :, :]
+            der = -5.0 / 3.0 * s / (self.lengthscale ** 2) * self.variance * \
+                ((d + np.sqrt(5) * d ** 2 / self.lengthscale) * exp_term /
+                    d)[:, :, None]
+            return res, der
+        else:
+            return res
+
+    def diag(self, x1, x2):
+        if x1 is x2:
+            return self.variance * np.ones(len(x1))
+
+        d = np.sqrt(np.sum((x1 - x2) ** 2, axis=1))
+        scaled_d = np.sqrt(5) * d / self.lengthscale
+        return self.variance * (1 + scaled_d + scaled_d ** 2 / 3.0) * \
+            np.exp(-scaled_d)
+
+    def param_derivatives(self, x1, x2):
+        scaled_d = np.sqrt(3) * self._calc_distance(x1, x2) / self.lengthscale
+        exp_term = np.exp(-scaled_d)
+        variance_deriv = (1 + scaled_d + scaled_d ** 2 / 3.0) * exp_term
+        lengthscale_deriv = self.variance / self.lengthscale * \
+            (scaled_d ** 3 / 3.0 + scaled_d ** 2) * exp_term
+        return [lengthscale_deriv, variance_deriv]
+
+    def _calc_distance(self, x1, x2):
+        return np.sqrt(-2 * np.dot(x1, x2.T) + (
+            np.sum(np.square(x1), 1)[:, None] +
+            np.sum(np.square(x2), 1)[None, :]))
+
+
 class AnisotropicExponentialKernel(object):
     def __init__(self, lengthscale_mat, variance=1.0):
         lengthscale_mat = np.asarray(lengthscale_mat)
