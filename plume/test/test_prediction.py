@@ -360,9 +360,16 @@ class TestOnlineGP(object):
         y = np.array([[-2, 0, 1, 2, -1]]).T
         self.gp.fit(x, y)
         actual = self.gp.calc_neg_log_likelihood()
-        expected = (8.51911832, np.array([0.76088728, -0.49230927]))
-        assert_almost_equal(actual[0], expected[0])
-        assert_almost_equal(actual[1], expected[1])
+        expected = 8.51911832
+        assert_almost_equal(actual, expected)
+
+    def test_can_calculate_neg_log_likelihood_derivative(self):
+        x = np.array([[-4, -2, -0.5, 0, 2]]).T
+        y = np.array([[-2, 0, 1, 2, -1]]).T
+        self.gp.fit(x, y)
+        actual = self.gp.calc_neg_log_likelihood(eval_derivative=True)
+        expected = np.array([0.76088728, -0.49230927])
+        assert_almost_equal(actual[1], expected)
 
 
 class TestLikelihoodGP(object):
@@ -382,11 +389,14 @@ class TestLikelihoodGP(object):
         assert_almost_equal(actual, expected)
 
     def test_can_calculate_neg_log_likelihood(self):
-        expected = (9.3495487653878691,
-                    np.array([1.50581184e-05, 9.73710450e-06]))
+        expected = 9.3495487653878691
         actual = self.gp.calc_neg_log_likelihood()
-        assert_almost_equal(expected[0], actual[0])
-        assert_almost_equal(expected[1], actual[1])
+        assert_almost_equal(expected, actual)
+
+    def test_can_calculate_neg_log_likelihood_derivative(self):
+        expected = np.array([1.50581184e-05, 9.73710450e-06])
+        actual = self.gp.calc_neg_log_likelihood(eval_derivative=True)
+        assert_almost_equal(expected, actual[1])
 
     def test_optimizes_kernel_params(self):
         expected = np.array([0.7032695, 1.17616655])
