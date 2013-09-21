@@ -416,7 +416,8 @@ class OnlineGP(object):
             alpha = np.dot(self.L_inv.data.T, svs)
             grad_weighting = np.dot(alpha, alpha.T) - self.K_inv
             kernel_derivative = np.array([
-                0.5 * np.sum(np.einsum('ij,ji->i', grad_weighting, param_deriv))
+                0.5 * np.sum(np.einsum(
+                    'ij,ji->i', grad_weighting, param_deriv))
                 for param_deriv in self.kernel.param_derivatives(
                     self.x_train.data, self.x_train.data)])
 
@@ -488,7 +489,8 @@ class LikelihoodGP(object):
         if eval_derivative:
             gp_neg_log_likelihood, gp_neg_deriv = \
                 self.gp.calc_neg_log_likelihood(eval_derivative=True)
-            prior_deriv = np.sum([prior.derivative(theta) for prior, theta \
+            prior_deriv = np.sum([
+                prior.derivative(theta) for prior, theta
                 in zip(self.priors, self.kernel.params)])
             return gp_neg_log_likelihood - prior_log_likelihood, \
                 gp_neg_deriv - prior_deriv
