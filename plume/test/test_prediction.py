@@ -4,7 +4,7 @@ from numpy.testing import assert_almost_equal, assert_equal
 
 import plume.prediction
 from plume.prediction import AnisotropicExponentialKernel, ExponentialKernel, \
-    RBFKernel
+    Matern32Kernel, Matern52Kernel, RBFKernel
 
 
 class TestRBFKernel(object):
@@ -122,6 +122,126 @@ class TestExponentialKernel(object):
 
     def _create_kernel(self, lengthscale, variance):
         return ExponentialKernel(lengthscale=lengthscale, variance=variance)
+
+
+class TestMatern32Kernel(object):
+    def test_kernel(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([
+            [0.00879323, 0.00082427],
+            [0.01579335, 0.00125588]])
+        actual = Matern32Kernel(lengthscale=0.6, variance=0.75)(x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_kernel_derivative(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([
+            [[0.0, 0.00982927, 0.01965854],
+             [0.00203448, 0.00067816, 0.0]],
+            [[0.0, 0.0, 0.03886061],
+             [0.00325013, 0.0, 0.0]]])
+        unused, actual = Matern32Kernel(lengthscale=0.6, variance=0.75)(
+            x1, x2, eval_derivative=True)
+        assert_almost_equal(actual, expected)
+
+    def test_diag_symmetric(self):
+        x = np.array([[1, 1, 1], [1, 2, 1]])
+        expected = 0.75 * np.ones(2)
+        actual = Matern32Kernel(lengthscale=0.6, variance=0.75).diag(x, x)
+        assert_almost_equal(actual, expected)
+
+    def test_diag(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([0.00879323, 0.00125588])
+        actual = Matern32Kernel(lengthscale=0.6, variance=0.75).diag(
+            x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_param_derivatives(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([
+            [[0.08191057, 0.01130266],
+             [0.12953538, 0.01625065]],
+            [[0.01172431, 0.00109902],
+             [0.0210578, 0.00167451]]])
+        actual = Matern32Kernel(
+            lengthscale=0.6, variance=0.75).param_derivatives(x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_can_get_params_as_array(self):
+        kernel = Matern32Kernel(lengthscale=0.6, variance=0.75)
+        assert_equal(kernel.get_params(), np.array([0.6, 0.75]))
+        assert_equal(kernel.params, np.array([0.6, 0.75]))
+
+    def test_can_set_params_as_array(self):
+        kernel = Matern32Kernel(lengthscale=0.6, variance=0.75)
+        kernel.set_params(np.array([1.2, 0.5]))
+        assert_that(kernel.lengthscale, is_(equal_to(1.2)))
+        assert_that(kernel.variance, is_(equal_to(0.5)))
+
+
+class TestMatern52Kernel(object):
+    def test_kernel(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([
+            [0.00585567, 0.00033752],
+            [0.01172022, 0.0005632]])
+        actual = Matern52Kernel(lengthscale=0.6, variance=0.75)(x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_kernel_derivative(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([
+            [[0.0, 0.00778975, 0.0155795],
+             [0.00101443, 0.00033814, 0.0]],
+            [[0.0, 0.0, 0.03401239],
+             [0.00176941, 0.0, 0.0]]])
+        unused, actual = Matern52Kernel(lengthscale=0.6, variance=0.75)(
+            x1, x2, eval_derivative=True)
+        assert_almost_equal(actual, expected)
+
+    def test_diag_symmetric(self):
+        x = np.array([[1, 1, 1], [1, 2, 1]])
+        expected = 0.75 * np.ones(2)
+        actual = Matern52Kernel(lengthscale=0.6, variance=0.75).diag(x, x)
+        assert_almost_equal(actual, expected)
+
+    def test_diag(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([0.00585567, 0.0005632])
+        actual = Matern52Kernel(lengthscale=0.6, variance=0.75).diag(
+            x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_param_derivatives(self):
+        x1 = np.array([[1, 1, 1], [1, 2, 1]])
+        x2 = np.array([[1, 2, 3], [4, 2, 1]])
+        expected = np.array([
+            [[0.25815405, 0.04569556],
+             [0.37882633, 0.06316224]],
+            [[0.03356713, 0.00411306],
+             [0.05560057, 0.00600802]]])
+        actual = Matern52Kernel(
+            lengthscale=0.6, variance=0.75).param_derivatives(x1, x2)
+        assert_almost_equal(actual, expected)
+
+    def test_can_get_params_as_array(self):
+        kernel = Matern32Kernel(lengthscale=0.6, variance=0.75)
+        assert_equal(kernel.get_params(), np.array([0.6, 0.75]))
+        assert_equal(kernel.params, np.array([0.6, 0.75]))
+
+    def test_can_set_params_as_array(self):
+        kernel = Matern32Kernel(lengthscale=0.6, variance=0.75)
+        kernel.set_params(np.array([1.2, 0.5]))
+        assert_that(kernel.lengthscale, is_(equal_to(1.2)))
+        assert_that(kernel.variance, is_(equal_to(0.5)))
 
 
 class TestAnisotropicExponentialKernel(TestExponentialKernel):
