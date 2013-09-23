@@ -93,56 +93,72 @@ def do_simulation_run(trial, output_filename, conf, client):
         controller.run(num_steps)
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-q', '--quiet', action='store_true', help='Reduce output verbosity.')
-    parser.add_argument(
-        '-c', '--config', nargs=1, type=str, help='Configuration to load.')
-    parser.add_argument(
-        '-o', '--output', nargs=1, type=str, default=['plume'],
-        help='Output file name without extension (will be add automatically).')
-    parser.add_argument(
-        '-H', '--host', nargs=1, type=str,
-        help='Host running QRSim. If not given it will be tried to launch an '
-        'instance locally and connect to that.')
-    parser.add_argument(
-        '-P', '--port', nargs=1, type=int, default=[10000],
-        help='Port on which QRSim instance is listening.')
-    parser.add_argument(
-        'output_dir', nargs=1, type=str, help='Output directory.')
-    args = parser.parse_args()
+class QRSimApplication(object):
+    def __init__(self):
+        self.parser = argparse.ArgumentParser()
+        self.parser.add_argument(
+            '-q', '--quiet', action='store_true',
+            help='Reduce output verbosity.')
+        self.parser.add_argument(
+            '-c', '--config', nargs=1, type=str, help='Configuration to load.')
+        self.parser.add_argument(
+            '-H', '--host', nargs=1, type=str,
+            help='Host running QRSim. If not given it will be tried to launch '
+            'an instance locally and connect to that.')
+        self.parser.add_argument(
+            '-P', '--port', nargs=1, type=int, default=[10000],
+            help='Port on which QRSim instance is listening.')
+        self.parser.add_argument(
+            'output_dir', nargs=1, type=str, help='Output directory.')
 
-    stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.addFilter(FilterLevelAboveOrEqual(logging.WARNING))
-    stderr_handler = logging.StreamHandler(sys.stderr)
-    stderr_handler.setLevel(logging.WARNING)
-    root_logger = logging.getLogger()
-    if args.quiet:
-        root_logger.setLevel(logging.WARNING)
-    else:
-        root_logger.setLevel(logging.INFO)
-    root_logger.addHandler(stdout_handler)
-    root_logger.addHandler(stderr_handler)
+    def main(self):
+        args = self.parser.parse_args()
 
-    conf = load_config(args.config[0])
-
-    with TaskPlumeClient() as client:
-        if args.host is not None:
-            client.connect_to(args.host[0], args.port[0])
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.addFilter(FilterLevelAboveOrEqual(logging.WARNING))
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setLevel(logging.WARNING)
+        root_logger = logging.getLogger()
+        if args.quiet:
+            root_logger.setLevel(logging.WARNING)
         else:
-            qrsim = pexpect.spawn(
-                'matlab -nodesktop -nosplash -r "'
-                "cd(fileparts(which('QRSimTCPServer')));"
-                "QRSimTCPServer(0);"
-                'quit;"',
-                timeout=120)
-            qrsim.logfile = sys.stdout
-            qrsim.expect(r'Listening on port: (\d+)')
-            port = int(qrsim.match.group(1))
-            client.connect_to('127.0.0.1', port)
-        client.init(conf['task'])
+            root_logger.setLevel(logging.INFO)
+        root_logger.addHandler(stdout_handler)
+        root_logger.addHandler(stderr_handler)
 
+        conf = load_config(args.config[0])
+
+        with TaskPlumeClient() as client:
+            if args.host is not None:
+                client.connect_to(args.host[0], args.port[0])
+            else:
+                qrsim = pexpect.spawn(
+                    'matlab -nodesktop -nosplash -r "'
+                    "cd(fileparts(which('QRSimTCPServer')));"
+                    "QRSimTCPServer(0);"
+                    'quit;"',
+                    timeout=120)
+                qrsim.logfile = sys.stdout
+                qrsim.expect(r'Listening on port: (\d+)')
+                port = int(qrsim.match.group(1))
+                client.connect_to('127.0.0.1', port)
+            client.init(conf['task'])
+
+            return self._run_application(args, conf, client)
+
+    def _run_application(self, args, conf, client):
+        raise NotImplementedError()
+
+
+class Plume(QRSimApplication):
+    def __init__(self):
+        super(Plume, self).__init__()
+        self.parser.add_argument(
+            '-o', '--output', nargs=1, type=str, default=['plume'],
+            help='Output file name without extension (will be add '
+            'automatically).')
+
+    def _run_application(self, args, conf, client):
         clean = True
         for i in xrange(conf['repeats']):
             try:
@@ -156,7 +172,7 @@ def main():
 
 
 if __name__ == '__main__':
-    if main():
+    if Plume().main():
         sys.exit(os.EX_OK)
     else:
         sys.exit(os.EX_SOFTWARE)

@@ -24,5 +24,6 @@ def load_config(filename):
     for key in modules:
         del conf[key]
 
-    conf['global_conf']['area'] = np.asarray(conf['global_conf']['area'])
+    if 'global_conf' in conf:
+        conf['global_conf']['area'] = np.asarray(conf['global_conf']['area'])
     return conf
