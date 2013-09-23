@@ -293,6 +293,126 @@ class GaussianLogPrior(object):
         return -(x - self.mean) / self.std
 
 
+class SparseGP(object):
+    def __init__(self, kernel, noise_var=1.0, max_bv=1000):
+        self.kernel = kernel
+        self.noise_var = noise_var
+        self.max_bv = max_bv
+        self.num_bv = 0
+        self.x_bv = None
+        self.y_bv = None
+        self.alpha = np.zeros(max_bv + 1)
+        self.C = np.zeros((max_bv + 1, max_bv + 1))
+        self.s = np.ones(max_bv + 1)
+        self.trained = False
+
+    def fit(self, x_train, y_train):
+        # FIXME larger set then max_bv
+        self.num_bv = len(x_train)
+        self.x_bv = np.empty((self.max_bv, x_train.shape[1]))
+        self.x_bv[:self.num_bv] = x_train
+        self.y_bv = np.empty((self.max_bv, y_train.shape[1]))
+        self.y_bv[:self.num_bv] = y_train
+        self.s.fill(1.0)
+        self.C.fill(0.0)
+        self.alpha.fill(0.0)
+
+        L_inv = inv(cholesky(
+            self.kernel(x_train, x_train) +
+            np.eye(len(x_train)) * self.noise_var))
+        K_inv = np.dot(L_inv.T, L_inv)
+        self.alpha[:self.num_bv] = np.squeeze(np.dot(K_inv, y_train))
+        self.C[:self.num_bv, :self.num_bv] = -K_inv
+
+        self.trained = True
+
+    def add_observations(self, x_train, y_train):
+        if not self.trained:
+            self.fit(x_train, y_train)
+        else:
+            for x, y in zip(x_train, y_train):
+                self.add_single_observation(x, y)
+
+    def add_single_observation(self, x, y):
+        self._extend_basis(x, y)
+
+    def _extend_basis(self, x, y):
+        x = np.atleast_2d(x)
+        k = self.kernel(self.x_bv[:self.num_bv], x)
+        k_star = np.squeeze(self.kernel(x, x))
+
+        if self.num_bv > 0:
+            sigma_x_sq = np.squeeze(self.noise_var + np.einsum(
+                'ij,jk,kl->il', k.T,
+                self.C[:self.num_bv, :self.num_bv], k) + k_star)
+        else:
+            sigma_x_sq = self.noise_var + k_star
+        q = (y - np.dot(self.alpha[:self.num_bv], k)) / sigma_x_sq
+        r = -1.0 / sigma_x_sq
+
+        if self.num_bv > 0:
+            self.s[:self.num_bv] = np.squeeze(np.dot(
+                self.C[:self.num_bv, :self.num_bv], k))
+        self.alpha[:self.num_bv + 1] += q * self.s[:self.num_bv + 1]
+        self.C[:self.num_bv + 1, :self.num_bv + 1] += r * np.outer(
+            self.s[:self.num_bv + 1], self.s[:self.num_bv + 1])
+
+        self.x_bv[self.num_bv] = x
+        self.y_bv[self.num_bv] = y
+        self.num_bv += 1
+
+    def predict(self, x, eval_MSE=False, eval_derivatives=False):
+        if eval_derivatives:
+            k, k_derivative = self.kernel(
+                x, self.x_bv[:self.num_bv], eval_derivative=True)
+        else:
+            k = self.kernel(x, self.x_bv[:self.num_bv])
+        pred = np.dot(k, np.atleast_2d(self.alpha[:self.num_bv]).T)
+
+        if eval_MSE:
+            mse = np.maximum(
+                self.noise_var,
+                self.noise_var + self.kernel.diag(x, x) + np.einsum(
+                    'ij,jk,ki->i', k, self.C[:self.num_bv, :self.num_bv], k.T))
+
+        if eval_derivatives:
+            pred_derivative = np.einsum(
+                'ijk,lj->ilk', k_derivative,
+                np.atleast_2d(self.alpha[:self.num_bv]))
+            if eval_MSE:
+                mse_derivative = 2 * np.einsum(
+                    'ijk,jl,li->ik', k_derivative,
+                    self.C[:self.num_bv, :self.num_bv], k.T)
+                return pred, pred_derivative, mse, mse_derivative
+            else:
+                return pred, pred_derivative
+        elif eval_MSE:
+            return pred, mse
+        else:
+            return pred
+
+    def calc_neg_log_likelihood(self, eval_derivative=False):
+        L_inv = cholesky(-self.C[:self.num_bv, :self.num_bv])
+        svs = np.dot(self.y_bv[:self.num_bv].T, L_inv)
+        log_likelihood = -0.5 * np.dot(svs, svs.T) + \
+            np.sum(np.log(np.diag(L_inv))) - \
+            0.5 * self.num_bv * np.log(2 * np.pi)
+
+        if eval_derivative:
+            alpha = np.dot(svs, L_inv.T)
+            grad_weighting = np.dot(alpha.T, alpha) + \
+                self.C[:self.num_bv, :self.num_bv]
+            kernel_derivative = np.array([
+                0.5 * np.sum(np.einsum(
+                    'ij,ji->i', grad_weighting, param_deriv))
+                for param_deriv in self.kernel.param_derivatives(
+                    self.x_bv[:self.num_bv], self.x_bv[:self.num_bv])])
+
+            return -np.squeeze(log_likelihood), -kernel_derivative
+        else:
+            return -np.squeeze(log_likelihood)
+
+
 class OnlineGP(object):
     def __init__(self, kernel, noise_var=1.0, expected_samples=100):
         self.kernel = kernel
