@@ -1,0 +1,26 @@
+experiment = Kernels
+
+__cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Basic influence of parameters on {kernel}.' python plume/try_kernels.py -o {kernel}_{__name__!q} -c {configfile!t}"""
+configfile = conf/trykernels.conf.in
+
+kernel = RBFKernel
+
+[SingleSource_noiseless]
+    task = TaskPlumeSingleSourceGaussianDefaultControls
+    noise_var = 1e-10
+
+[SingleSource_dispersion_noiseless]
+    task = TaskPlumeSingleSourceGaussianDispersionDefaultControls
+    noise_var = 1e-10
+
+[SingleSource_dispersion]
+    task = TaskPlumeSingleSourceGaussianDispersionDefaultControls
+    noise_var = 1e-4
+
+[MultipleSource_dispersion_noiseless]
+    task = TaskPlumeMultiSourceGaussianDispersionDefaultControls
+    noise_var = 1e-10
+
+[MultipleSource_dispersion]
+    task = TaskPlumeMultiSourceGaussianDispersionDefaultControls
+    noise_var = 1e-4
