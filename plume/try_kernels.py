@@ -69,6 +69,12 @@ class KernelTester(object):
                 (len(conf['lengthscales']), len(conf['variances']),
                  conf['repeats'])))
 
+        group = fileh.createGroup('/', 'likelihood_optimization')
+        fileh.createArray(group, 'lengthscales', np.zeros(conf['repeats']))
+        fileh.createArray(group, 'variances', np.zeros(conf['repeats']))
+        for measure in self.measures:
+            fileh.createArray(group, measure.name, np.zeros(conf['repeats']))
+
     def run_and_store_results(self):
         for i in xrange(self.conf['repeats']):
             self._do_trial(i)
@@ -100,6 +106,25 @@ class KernelTester(object):
             for measure in self.measures:
                 self.fileh.get_node('/', measure.name)[i, j, trial] = measure(
                     gp, test_x, test_y)
+
+        logger.info('Trial {}, likelihood optimization'.format(trial))
+        max_likelihood_idx = np.unravel_index(
+            np.argmax(self.fileh.root.log_likelihood.read()[:, :, trial]),
+            (len(self.conf['lengthscales']), len(self.conf['variances'])))
+        lengthscale = self.conf['lengthscales'][max_likelihood_idx[0]]
+        variance = self.conf['variances'][max_likelihood_idx[1]]
+        kernel = self.conf['kernel'](prediction, lengthscale, variance)
+        gp = prediction.LikelihoodGP(
+            kernel, self.conf['noise_var'], self.conf['train_size'])
+        gp.fit(train_x, train_y)
+        self.fileh.root.likelihood_optimization.lengthscales[trial] = \
+            kernel.lengthscale
+        self.fileh.root.likelihood_optimization.variances[trial] = \
+            kernel.variance
+        for measure in self.measures:
+            self.fileh.get_node(
+                '/likelihood_optimization', measure.name)[trial] = measure(
+                gp, test_x, test_y)
 
     def _gen_probe_locations(self):
         ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
