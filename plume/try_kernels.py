@@ -108,7 +108,7 @@ class KernelTester(object):
             gp.fit(train_x, train_y)
 
             for measure in self.measures:
-                self.fileh.get_node('/', measure.name)[i, j, trial] = measure(
+                self.fileh.getNode('/', measure.name)[i, j, trial] = measure(
                     gp, test_x, test_y)
 
         logger.info('Trial {}, likelihood optimization'.format(trial))
@@ -126,7 +126,7 @@ class KernelTester(object):
         self.fileh.root.likelihood_optimization.variances[trial] = \
             kernel.variance
         for measure in self.measures:
-            self.fileh.get_node(
+            self.fileh.getNode(
                 '/likelihood_optimization', measure.name)[trial] = measure(
                 gp, test_x, test_y)
 
