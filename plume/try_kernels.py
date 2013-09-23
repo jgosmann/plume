@@ -91,6 +91,10 @@ class KernelTester(object):
         test_x = locations[self.conf['train_size']:]
         test_y = ground_truth[self.conf['train_size']:]
 
+        if self.conf['noise_var'] > 1e-6:
+            train_y += np.sqrt(self.conf['noise_var']) * rnd.randn(
+                len(train_y))
+
         for i, j in np.ndindex(
                 len(self.conf['lengthscales']), len(self.conf['variances'])):
             lengthscale = self.conf['lengthscales'][i]
