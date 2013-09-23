@@ -365,7 +365,6 @@ class SparseGP(object):
         self.alpha[:] += q * self.s
         self.C[:] += r * np.outer(self.s, self.s)
 
-
     def predict(self, x, eval_MSE=False, eval_derivatives=False):
         if eval_derivatives:
             k, k_derivative = self.kernel(
