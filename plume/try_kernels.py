@@ -49,6 +49,11 @@ class LogLikelihood(ErrorMeasure):
         return -gp.calc_neg_log_likelihood()
 
 
+class ZeroPredictor(object):
+    def predict(self, x):
+        return np.zeros(len(x))
+
+
 class KernelTester(object):
     def __init__(self, fileh, conf, client):
         self.fileh = fileh
@@ -64,10 +69,15 @@ class KernelTester(object):
 
         fileh.createArray('/', 'lengthscales', conf['lengthscales'])
         fileh.createArray('/', 'variances', conf['variances'])
+
+        group = fileh.createGroup(
+            '/', 'zero_pred_error',
+            title='Error values for all zero prediction.')
         for measure in self.measures:
             fileh.createArray('/', measure.name, np.zeros(
                 (len(conf['lengthscales']), len(conf['variances']),
                  conf['repeats'])))
+            fileh.createArray(group, measure.name, np.zeros(conf['repeats']))
 
         group = fileh.createGroup('/', 'likelihood_optimization')
         fileh.createArray(group, 'lengthscales', np.zeros(conf['repeats']))
@@ -110,6 +120,8 @@ class KernelTester(object):
             for measure in self.measures:
                 self.fileh.getNode('/', measure.name)[i, j, trial] = measure(
                     gp, test_x, test_y)
+                self.fileh.getNode('/zero_pred_error', measure.name)[trial] = \
+                    measure(ZeroPredictor(), test_x, test_y)
 
         logger.info('Trial {}, likelihood optimization'.format(trial))
         max_likelihood_idx = np.unravel_index(
