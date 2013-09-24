@@ -294,8 +294,9 @@ class GaussianLogPrior(object):
 
 
 class SparseGP(object):
-    def __init__(self, kernel, noise_var=1.0, max_bv=1000):
+    def __init__(self, kernel, tolerance, noise_var=1.0, max_bv=1000):
         self.kernel = kernel
+        self.tolerance = tolerance
         self.noise_var = noise_var
         self.max_bv = max_bv
         self.num_bv = 0
@@ -304,13 +305,14 @@ class SparseGP(object):
         self._alpha = np.zeros(max_bv + 1)
         self._C = np.zeros((max_bv + 1, max_bv + 1))
         self._s = np.ones(max_bv + 1)
+        self._K_inv = np.zeros((max_bv + 1, max_bv + 1))
         self.trained = False
 
     x_bv = property(lambda self: self._x_bv[:self.num_bv])
     y_bv = property(lambda self: self._y_bv[:self.num_bv])
     alpha = property(lambda self: self._alpha[:self.num_bv])
-    s = property(lambda self: self._s[:self.num_bv])
     C = property(lambda self: self._C[:self.num_bv, :self.num_bv])
+    K_inv = property(lambda self: self._K_inv[:self.num_bv, :self.num_bv])
 
     def fit(self, x_train, y_train):
         # FIXME larger set then max_bv
@@ -319,16 +321,17 @@ class SparseGP(object):
         self.x_bv[:] = x_train
         self._y_bv = np.empty((self.max_bv, y_train.shape[1]))
         self.y_bv[:] = y_train
-        self.s.fill(1.0)
-        self.C.fill(0.0)
-        self.alpha.fill(0.0)
+        self._s.fill(1.0)
+        self._C.fill(0.0)
+        self._alpha.fill(0.0)
+        self._K_inv.fill(0.0)
 
         L_inv = inv(cholesky(
             self.kernel(x_train, x_train) +
             np.eye(len(x_train)) * self.noise_var))
-        K_inv = np.dot(L_inv.T, L_inv)
-        self.alpha[:] = np.squeeze(np.dot(K_inv, y_train))
-        self.C[:] = -K_inv
+        self.K_inv[:, :] = np.dot(L_inv.T, L_inv)
+        self.alpha[:] = np.squeeze(np.dot(self.K_inv, y_train))
+        self.C[:, :] = -self.K_inv
 
         self.trained = True
 
@@ -340,12 +343,12 @@ class SparseGP(object):
                 self.add_single_observation(x, y)
 
     def add_single_observation(self, x, y):
-        self._extend_basis(x, y)
-
-    def _extend_basis(self, x, y):
         x = np.atleast_2d(x)
         k = self.kernel(self.x_bv, x)
         k_star = np.squeeze(self.kernel(x, x))
+
+        gamma = np.squeeze(k_star - np.einsum('ij,jk,kl', k.T, self.K_inv, k))
+        e_hat = np.atleast_1d(np.squeeze(np.dot(self.K_inv, k)))
 
         if self.num_bv > 0:
             sigma_x_sq = np.squeeze(self.noise_var + np.einsum(
@@ -355,15 +358,32 @@ class SparseGP(object):
         q = (y - np.dot(self.alpha, k)) / sigma_x_sq
         r = -1.0 / sigma_x_sq
 
-        if self.num_bv > 0:
-            self.s[:] = np.squeeze(np.dot(self.C, k))
+        if gamma < self.tolerance:
+            self._reduced_update(k, e_hat, q, r)
+        else:
+            self._extend_basis(x, y, k, q, r)
+            self._update_K(gamma, e_hat)
+
+    def _extend_basis(self, x, y, k, q, r):
+        s = np.concatenate((np.atleast_1d(np.squeeze(np.dot(self.C, k))), [1]))
 
         self.num_bv += 1
         self.x_bv[-1] = x
         self.y_bv[-1] = y
 
-        self.alpha[:] += q * self.s
-        self.C[:] += r * np.outer(self.s, self.s)
+        self._update_alpha_and_C(q, r, s)
+
+    def _reduced_update(self, k, e_hat, q, r):
+        s = np.squeeze(np.dot(self.C, k)) + e_hat
+        self._update_alpha_and_C(q, r, s)
+
+    def _update_alpha_and_C(self, q, r, s):
+        self.alpha[:] += q * s
+        self.C[:] += r * np.outer(s, s)
+
+    def _update_K(self, gamma, e_hat):
+        e_extended = np.concatenate((e_hat, [-1]))
+        self.K_inv[:, :] += np.outer(e_extended, e_extended) / gamma
 
     def predict(self, x, eval_MSE=False, eval_derivatives=False):
         if eval_derivatives:

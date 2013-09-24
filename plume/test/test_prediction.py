@@ -291,7 +291,7 @@ class TestAnisotropicExponentialKernel(TestExponentialKernel):
 class TestSparseGP(object):
     def setUp(self):
         self.gp = plume.prediction.SparseGP(
-            plume.prediction.RBFKernel(1.0), noise_var=0.5)
+            plume.prediction.RBFKernel(1.0), tolerance=0.1, noise_var=0.5)
 
     def test_can_predict(self):
         x = np.array([[-4, -2, -0.5, 0, 2]]).T
@@ -302,6 +302,21 @@ class TestSparseGP(object):
         expected = np.array([[-0.78511166, 0.37396387]]).T
         pred = self.gp.predict(x_star)
         assert_almost_equal(pred, expected)
+
+    def test_uses_reduced_updates_when_tolerated(self):
+        self.gp.tolerance = 0.05
+        xs = [-4, -2, 0, 2, -2.1]
+        ys = [-2, 0, -2, -16, -0.01]
+
+        for x, y, in zip(xs, ys):
+            self.gp.add_observations(np.array([[x]]), np.array([[y]]))
+
+        test_x = np.array([[-3, 1]]).T
+        expected = np.array([[-0.70331121], [-6.6841424]])
+        actual = self.gp.predict(test_x)
+
+        assert_that(self.gp.num_bv, is_(equal_to(4)))
+        assert_almost_equal(expected, actual)
 
     def test_evaluates_mse(self):
         x = np.array([[-4, -2, -0.5, 0, 2]]).T
