@@ -20,6 +20,18 @@ class ErrorMeasure(object):
         self.name = name
 
 
+class Reward(ErrorMeasure):
+    def __init__(self, client):
+        super(Reward, self).__init__('reward')
+        self.client = client
+        self.locations = self.client.get_locations()
+
+    def __call__(self, gp, test_x, test_y):
+        samples = np.maximum(0, self.gp.predict(self.locations))
+        self.client.set_samples(samples)
+        return self.client.get_reward()
+
+
 class RMSE(ErrorMeasure):
     def __init__(self):
         super(RMSE, self).__init__('rmse')
@@ -63,7 +75,7 @@ class KernelTester(object):
         self.conf = conf
         self.client = client
 
-        self.measures = [RMSE(), WRMSE(), LogLikelihood()]
+        self.measures = [RMSE(), WRMSE(), LogLikelihood(), Reward(client)]
 
         tbl = fileh.createVLArray(
             '/', 'conf', tables.ObjectAtom(),
