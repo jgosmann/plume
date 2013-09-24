@@ -27,7 +27,7 @@ class Reward(ErrorMeasure):
         self.locations = self.client.get_locations()
 
     def __call__(self, gp, test_x, test_y):
-        samples = np.maximum(0, self.gp.predict(self.locations))
+        samples = np.maximum(0, gp.predict(self.locations))
         self.client.set_samples(samples)
         return self.client.get_reward()
 
