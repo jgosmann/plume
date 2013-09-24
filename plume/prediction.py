@@ -315,16 +315,24 @@ class SparseGP(object):
     K_inv = property(lambda self: self._K_inv[:self.num_bv, :self.num_bv])
 
     def fit(self, x_train, y_train):
-        # FIXME larger set then max_bv
-        self.num_bv = len(x_train)
+        self.num_bv = min(len(x_train), self.max_bv)
         self._x_bv = np.empty((self.max_bv + 1, x_train.shape[1]))
-        self.x_bv[:] = x_train
         self._y_bv = np.empty((self.max_bv + 1, y_train.shape[1]))
-        self.y_bv[:] = y_train
         self._s.fill(1.0)
         self._C.fill(0.0)
         self._alpha.fill(0.0)
         self._K_inv.fill(0.0)
+
+        if len(x_train) > self.max_bv:
+            more_x = x_train[self.max_bv:, :]
+            more_y = y_train[self.max_bv:, :]
+            x_train = x_train[:self.max_bv, :]
+            y_train = y_train[:self.max_bv, :]
+        else:
+            more_x = more_y = None
+
+        self.x_bv[:] = x_train
+        self.y_bv[:] = y_train
 
         L_inv = inv(cholesky(
             self.kernel(x_train, x_train) +
@@ -334,6 +342,9 @@ class SparseGP(object):
         self.C[:, :] = -self.K_inv
 
         self.trained = True
+
+        if more_x is not None:
+            self.add_observations(more_x, more_y)
 
     def add_observations(self, x_train, y_train):
         if not self.trained:
@@ -385,12 +396,12 @@ class SparseGP(object):
 
     def _update_K(self, gamma, e_hat):
         e_extended = np.concatenate((e_hat, [-1]))
-        self.K_inv[:, :] += np.outer(e_extended, e_extended) / gamma
+        self.K_inv[:, :] += np.outer(e_extended, e_extended) / (
+            self.noise_var + gamma)
 
     def _delete_bv(self):
         score = np.abs(self.alpha) / np.diag(self.K_inv)
         min_bv = np.argmin(score)
-        print(score)
 
         alpha_star = self._exclude_from_vec(self.alpha, min_bv)
         Q_star, q_star = self._exclude_from_mat(self.K_inv, min_bv)

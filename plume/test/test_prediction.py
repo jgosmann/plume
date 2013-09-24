@@ -304,15 +304,15 @@ class TestSparseGP(object):
         assert_almost_equal(pred, expected)
 
     def test_uses_reduced_updates_when_tolerated(self):
-        self.gp.tolerance = 0.05
-        xs = [-4, -2, 0, 2, -2.1]
-        ys = [-2, 0, -2, -16, -0.01]
+        self.gp.tolerance = 0.5
+        xs = [-4, -2.1, 0, 2, -2]
+        ys = [-2, -0.01, -2, -16, 0]
 
         for x, y, in zip(xs, ys):
             self.gp.add_observations(np.array([[x]]), np.array([[y]]))
 
         test_x = np.array([[-3, 1]]).T
-        expected = np.array([[-0.70331121], [-6.6841424]])
+        expected = np.array([[-0.70996282], [-6.68149458]])
         actual = self.gp.predict(test_x)
 
         assert_that(self.gp.num_bv, is_(equal_to(4)))
@@ -327,7 +327,20 @@ class TestSparseGP(object):
             self.gp.add_observations(np.array([[x]]), np.array([[y]]))
 
         test_x = np.array([[-3, 1]]).T
-        expected = np.array([[-0.69350521], [-6.68205148]])
+        expected = np.array([[-0.70996282], [-6.68149458]])
+        actual = self.gp.predict(test_x)
+
+        assert_that(self.gp.num_bv, is_(equal_to(4)))
+        assert_almost_equal(expected, actual)
+
+    def test_training_will_keep_at_most_max_bv_basis_vectors(self):
+        self.gp.max_bv = 4
+        xs = np.array([[-4, -2.1, 0, 2, -2]]).T
+        ys = np.array([[-2, -0.01, -2, -16, 0]]).T
+        self.gp.fit(xs, ys)
+
+        test_x = np.array([[-3, 1]]).T
+        expected = np.array([[-0.70996282], [-6.68149458]])
         actual = self.gp.predict(test_x)
 
         assert_that(self.gp.num_bv, is_(equal_to(4)))
