@@ -317,9 +317,9 @@ class SparseGP(object):
     def fit(self, x_train, y_train):
         # FIXME larger set then max_bv
         self.num_bv = len(x_train)
-        self._x_bv = np.empty((self.max_bv, x_train.shape[1]))
+        self._x_bv = np.empty((self.max_bv + 1, x_train.shape[1]))
         self.x_bv[:] = x_train
-        self._y_bv = np.empty((self.max_bv, y_train.shape[1]))
+        self._y_bv = np.empty((self.max_bv + 1, y_train.shape[1]))
         self.y_bv[:] = y_train
         self._s.fill(1.0)
         self._C.fill(0.0)
@@ -363,6 +363,8 @@ class SparseGP(object):
         else:
             self._extend_basis(x, y, k, q, r)
             self._update_K(gamma, e_hat)
+            if self.num_bv > self.max_bv:
+                self._delete_bv()
 
     def _extend_basis(self, x, y, k, q, r):
         s = np.concatenate((np.atleast_1d(np.squeeze(np.dot(self.C, k))), [1]))
@@ -384,6 +386,41 @@ class SparseGP(object):
     def _update_K(self, gamma, e_hat):
         e_extended = np.concatenate((e_hat, [-1]))
         self.K_inv[:, :] += np.outer(e_extended, e_extended) / gamma
+
+    def _delete_bv(self):
+        score = np.abs(self.alpha) / np.diag(self.K_inv)
+        min_bv = np.argmin(score)
+        print(score)
+
+        alpha_star = self._exclude_from_vec(self.alpha, min_bv)
+        Q_star, q_star = self._exclude_from_mat(self.K_inv, min_bv)
+        C_star, c_star = self._exclude_from_mat(self.C, min_bv)
+
+        self.num_bv -= 1
+
+        self.alpha[:] -= alpha_star / q_star * Q_star
+        QQ_T = np.outer(Q_star, Q_star)
+        QC_T = np.outer(Q_star, C_star)
+        self.C[:, :] += c_star / (q_star ** 2) * QQ_T - \
+            (QC_T + QC_T.T) / q_star
+        self.K_inv[:, :] -= QQ_T / q_star
+
+    def _exclude_from_vec(self, vec, idx, fill_value=0):
+        excluded = vec[idx]
+        vec[idx:-1] = vec[idx + 1:]
+        vec[-1] = fill_value
+        return excluded
+
+    def _exclude_from_mat(self, mat, idx, fill_value=0):
+        excluded_diag = mat[idx, idx]
+        excluded_vec = np.empty(len(mat) - 1)
+        excluded_vec[:idx] = mat[idx, :idx]
+        excluded_vec[idx:] = mat[idx, idx + 1:]
+        mat[idx:-1, :] = mat[idx + 1:, :]
+        mat[:, idx:-1] = mat[:, idx + 1:]
+        mat[-1, :] = fill_value
+        mat[:, -1] = fill_value
+        return excluded_vec, excluded_diag
 
     def predict(self, x, eval_MSE=False, eval_derivatives=False):
         if eval_derivatives:

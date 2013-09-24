@@ -291,7 +291,7 @@ class TestAnisotropicExponentialKernel(TestExponentialKernel):
 class TestSparseGP(object):
     def setUp(self):
         self.gp = plume.prediction.SparseGP(
-            plume.prediction.RBFKernel(1.0), tolerance=0.1, noise_var=0.5)
+            plume.prediction.RBFKernel(1.0), tolerance=0, noise_var=0.5)
 
     def test_can_predict(self):
         x = np.array([[-4, -2, -0.5, 0, 2]]).T
@@ -313,6 +313,21 @@ class TestSparseGP(object):
 
         test_x = np.array([[-3, 1]]).T
         expected = np.array([[-0.70331121], [-6.6841424]])
+        actual = self.gp.predict(test_x)
+
+        assert_that(self.gp.num_bv, is_(equal_to(4)))
+        assert_almost_equal(expected, actual)
+
+    def test_deletes_basis_vector_if_max_bv_exceeded(self):
+        self.gp.max_bv = 4
+        xs = [-4, -2.1, 0, 2, -2]
+        ys = [-2, -0.01, -2, -16, 0]
+
+        for x, y, in zip(xs, ys):
+            self.gp.add_observations(np.array([[x]]), np.array([[y]]))
+
+        test_x = np.array([[-3, 1]]).T
+        expected = np.array([[-0.69350521], [-6.68205148]])
         actual = self.gp.predict(test_x)
 
         assert_that(self.gp.num_bv, is_(equal_to(4)))
