@@ -1,6 +1,6 @@
 from config import ConfObj
 
-repeats = 20
+repeats = 50
 train_size = 1000
 
 seedlist = [
