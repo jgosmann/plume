@@ -53,6 +53,9 @@ class ZeroPredictor(object):
     def predict(self, x):
         return np.zeros(len(x))
 
+    def calc_neg_log_likelihood(self):
+        return np.nan
+
 
 class KernelTester(object):
     def __init__(self, fileh, conf, client):
