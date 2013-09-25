@@ -1,3 +1,4 @@
+from importlib import import_module
 import logging
 
 from qrsim.tcpclient import ctrl_signal_dimensions, UAVControls
@@ -56,6 +57,28 @@ class GeneralRecorder(object):
         lambda self: self.fileh.root.gt_locations.read())
     gt_samples = property(
         lambda self: self.fileh.root.gt_samples.read())
+
+
+def store_obj(fileh, loc, obj):
+    for k, v in obj.items():
+        if hasattr(v, '__dict__'):
+            group = fileh.createGroup(loc, k)
+            store_obj(fileh, group, v)
+            group._v_attrs.class_name = v.__class__.name
+            group._v_attrs.class_module = v.__class__.__module__
+        else:
+            fileh.createArray(loc, k, v)
+
+
+def load_obj(group):
+    mod = import_module(group._v_attrs.class_module)
+    cls = getattr(mod, group._v_attrs.class_name)
+    obj = cls()
+    for child in group._v_leaves:
+        setattr(obj, child._v_name, child.read())
+    for child in group._v_groups:
+        setattr(obj, child._v_name, load_obj(child))
+    return obj
 
 
 class TargetsRecorder(object):

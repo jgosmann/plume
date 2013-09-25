@@ -13,7 +13,8 @@ import behaviors
 from config import load_config
 from client import TaskPlumeClient
 import prediction
-from recorder import ControlsRecorder, TargetsRecorder, TaskPlumeRecorder
+from recorder import ControlsRecorder, store_obj, TargetsRecorder, \
+    TaskPlumeRecorder
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ def do_simulation_run(trial, output_filename, conf, client):
             controller.add_recorder(targets_recorder)
 
         controller.run(num_steps)
+        store_obj(fileh, fileh.createGroup('gp'), predictor)
 
 
 class QRSimApplication(object):

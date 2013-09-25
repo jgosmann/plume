@@ -306,14 +306,7 @@ class PlumeVisualizer(HasTraits):
             cls.plot_uav_trajectory(uav_positions, figure)
 
     def calc_estimation(self, data):
-        area = self.conf['global_conf']['area']
-        kernel = self.conf['kernel'](prediction)
-        kernel.params = data.root.kernel_params[-1]
-        noise_var = self.conf['predictor'].args[0]
-        predictor = prediction.OnlineGP(kernel, noise_var)
-        predictor.fit(
-            data.root.positions.read()[0, :self.end, :],
-            data.root.plume_measurements.read()[0, :self.end])
+        predictor = recorder.load_obj(data.root.gp)
         return predict_on_volume(predictor, area, [30, 30, 20])
 
     @staticmethod
