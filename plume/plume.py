@@ -92,7 +92,7 @@ def do_simulation_run(trial, output_filename, conf, client):
             controller.add_recorder(targets_recorder)
 
         controller.run(num_steps)
-        store_obj(fileh, fileh.createGroup('gp'), predictor)
+        store_obj(fileh, fileh.createGroup('/', 'gp'), predictor)
 
 
 class QRSimApplication(object):
