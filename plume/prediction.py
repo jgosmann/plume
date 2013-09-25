@@ -403,6 +403,8 @@ class SparseGP(object):
         score = np.abs(self.alpha) / np.diag(self.K_inv)
         min_bv = np.argmin(score)
 
+        self._exclude_from_vec(self.x_bv, min_bv)
+        self._exclude_from_vec(self.y_bv, min_bv)
         alpha_star = self._exclude_from_vec(self.alpha, min_bv)
         Q_star, q_star = self._exclude_from_mat(self.K_inv, min_bv)
         C_star, c_star = self._exclude_from_mat(self.C, min_bv)

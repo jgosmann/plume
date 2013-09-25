@@ -320,8 +320,8 @@ class TestSparseGP(object):
 
     def test_deletes_basis_vector_if_max_bv_exceeded(self):
         self.gp.max_bv = 4
-        xs = [-4, -2.1, 0, 2, -2]
-        ys = [-2, -0.01, -2, -16, 0]
+        xs = [-4, -2, -2.1, 0, 2]
+        ys = [-2, 0, -0.01, -2, -16]
 
         for x, y, in zip(xs, ys):
             self.gp.add_observations(np.array([[x]]), np.array([[y]]))
