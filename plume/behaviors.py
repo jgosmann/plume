@@ -13,27 +13,44 @@ class VelocityTowardsWaypointController(object):
     def __init__(self, maxv, max_climb, area):
         self.maxv = maxv
         self.max_climb = max_climb
-        self.max_speeds = np.array([self.maxv, self.maxv, self.max_climb])
         self.area = area
+        self.targets = None
 
-    def get_controls(self, noisy_states, targets):
-        assert len(noisy_states) == len(targets)
+    def get_max_speeds(self):
+        return np.array([self.maxv, self.maxv, self.max_climb])
 
+    def set_max_speeds(self, value):
+        assert len(value) == 3
+        assert value[0] == value[1]
+        self.maxv = value[0]
+        self.max_climb = value[2]
+
+    max_speeds = property(get_max_speeds, set_max_speeds)
+
+    def get_controls(self, noisy_states):
         controls = UAVControls(len(noisy_states), 'vel')
-        for uav in xrange(len(noisy_states)):
-            v = 0.05 * np.array([self.maxv, self.maxv, self.max_climb]) * \
-                (targets[uav] - noisy_states[uav].position)
-            if norm(v[:2]) > self.maxv:
-                v[:2] *= self.maxv / norm(v[:2])
-            v[2] = np.clip(v[2], -self.max_climb, self.max_climb)
 
-            outside_low = noisy_states[uav].position < self.area[:, 0]
-            outside_high = noisy_states[uav].position > self.area[:, 1]
-            v[outside_low] = self.max_speeds[outside_low]
-            v[outside_high] = -self.max_speeds[outside_high]
-            controls.U[uav, :] = v
-
+        if self.targets is None:
+            controls.U.fill(0)
+        else:
+            assert len(noisy_states) == len(self.targets)
+            for uav in xrange(len(noisy_states)):
+                controls.U[uav, :] = self._get_velocities(
+                    noisy_states[uav].position, self.targets[uav])
         return controls
+
+    def _get_velocities(self, current_pos, to):
+        v = 0.05 * np.array([self.maxv, self.maxv, self.max_climb]) * \
+            (to - current_pos)
+        if norm(v[:2]) > self.maxv:
+            v[:2] *= self.maxv / norm(v[:2])
+        v[2] = np.clip(v[2], -self.max_climb, self.max_climb)
+
+        outside_low = current_pos < self.area[:, 0]
+        outside_high = current_pos > self.area[:, 1]
+        v[outside_low] = self.max_speeds[outside_low]
+        v[outside_high] = -self.max_speeds[outside_high]
+        return v
 
 
 class RandomMovement(object):
