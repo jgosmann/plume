@@ -60,7 +60,7 @@ class RBFKernel(object):
 
 
 class ExponentialKernel(object):
-    def __init__(self, lengthscale, variance=1.0):
+    def __init__(self, lengthscale=1.0, variance=1.0):
         self.lengthscale = lengthscale
         self.variance = variance
 
@@ -294,7 +294,7 @@ class GaussianLogPrior(object):
 
 
 class SparseGP(object):
-    def __init__(self, kernel, tolerance, noise_var=1.0, max_bv=1000):
+    def __init__(self, kernel=None, tolerance=0, noise_var=1.0, max_bv=1000):
         self.kernel = kernel
         self.tolerance = tolerance
         self.noise_var = noise_var
