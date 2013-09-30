@@ -1,12 +1,10 @@
 import numpy as np
 from numpy.linalg import norm
-import numpy.random as rnd
 from qrsim.tcpclient import UAVControls
 from scipy.optimize import fmin_l_bfgs_b
 
 from datastructure import EnlargeableArray
 from nputil import meshgrid_nd
-from prediction import predict_on_volume
 
 
 class VelocityTowardsWaypointController(object):
@@ -51,72 +49,6 @@ class VelocityTowardsWaypointController(object):
         v[outside_low] = self.max_speeds[outside_low]
         v[outside_high] = -self.max_speeds[outside_high]
         return v
-
-
-class RandomMovement(object):
-    def __init__(self, maxv, height):
-        self.maxv = maxv
-        self.height = height
-
-    def get_controls(self, noisy_states, plume_measurement):
-        controls = UAVControls(len(noisy_states), 'vel')
-        for uav in xrange(len(noisy_states)):
-            # random velocity direction scaled by the max allowed velocity
-            xy_vel = rnd.rand(2) - 0.5
-            if norm(xy_vel) != 0:
-                xy_vel /= norm(xy_vel)
-            controls.U[uav, :2] = 0.5 * self.maxv * xy_vel
-            # if the uav is going astray we point it back to the center
-            p = np.asarray(noisy_states[uav].position[:2])
-            if norm(p) > 100:
-                controls.U[uav, :2] = -0.8 * self.maxv * p / norm(p)
-            # control height
-            controls.U[uav, 2] = max(-self.maxv, min(
-                self.maxv,
-                0.25 * self.maxv * (self.height - noisy_states[uav].z)))
-        return controls
-
-
-class ToMaxVariance(object):
-    def __init__(
-            self, margin, predictor, grid_resolution, area,
-            duration_in_steps=1000):
-        self.margin = margin
-        self.predictor = predictor
-        self.grid_resolution = grid_resolution
-        self.area = area
-        self.expected_steps = duration_in_steps
-        self.step = 0
-        self._controller = VelocityTowardsWaypointController(3, 3, area)
-
-    def get_controls(self, noisy_states, plume_measurement):
-        if self.step == 0:
-            self.positions = EnlargeableArray(
-                (len(noisy_states), 3), self.expected_steps)
-            self.plume_measurements = EnlargeableArray(
-                (len(noisy_states),), self.expected_steps)
-
-        self.positions.append([s.position for s in noisy_states])
-        self.plume_measurements.append(plume_measurement)
-        self.step += 1
-
-        if self.positions.data.size // 3 < 2:
-            b = RandomMovement(3, np.mean(self.get_effective_area()[2]))
-            return b.get_controls(noisy_states, plume_measurement)
-
-        self.predictor.fit(
-            self.positions.data.reshape((-1, 3)),
-            self.plume_measurements.data.flatten())
-        unused, mse, (x, y, z) = predict_on_volume(
-            self.predictor, self.get_effective_area(), self.grid_resolution)
-        wp_idx = np.unravel_index(np.argmax(mse), x.shape)
-
-        targets = np.array(
-            len(noisy_states) * [[x[wp_idx], y[wp_idx], z[wp_idx]]])
-        return self._controller.get_controls(noisy_states, targets)
-
-    def get_effective_area(self):
-        return self.area + np.array([self.margin, -self.margin])
 
 
 class UCBBased(object):
