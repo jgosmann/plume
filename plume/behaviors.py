@@ -102,34 +102,40 @@ class ToMaxVariance(object):
         return self.area + np.array([self.margin, -self.margin])
 
 
+class PlumeRecorder(object):
+    def __init__(self, duration_in_steps):
+        self.expected_steps = duration_in_steps
+        self.step = 0
+
+    def record_plume(self, noisy_states, plume_measurement):
+        if self.step == 0:
+            self.positions = EnlargeableArray(
+                (len(noisy_states), 3), self.expected_steps)
+            self.measurements = EnlargeableArray(
+                (len(noisy_states),), self.expected_steps)
+
+        self.positions.append([s.position for s in noisy_states])
+        self.measurements.append(plume_measurement)
+        self.step += 1
+
+
 class UCBBased(object):
     def __init__(
-            self, margin, predictor, grid_resolution, area, target_precision,
-            duration_in_steps=1000):
+            self, plume_recorder, margin, predictor, grid_resolution, area,
+            target_precision, duration_in_steps=1000):
+        self.plume_recorder = plume_recorder
         self.margin = margin
         self.predictor = predictor
         self.grid_resolution = grid_resolution
         self.area = area
         self.target_precision = target_precision
-        self.expected_steps = duration_in_steps
-        self.step = 0
         self.last_prediction_update = 0
         self._controller = VelocityTowardsWaypointController(
             3, 3, self.get_effective_area())
         self.targets = None
 
-    def get_controls(self, noisy_states, plume_measurement):
-        if self.step == 0:
-            self.positions = EnlargeableArray(
-                (len(noisy_states), 3), self.expected_steps)
-            self.plume_measurements = EnlargeableArray(
-                (len(noisy_states),), self.expected_steps)
-
-        self.positions.append([s.position for s in noisy_states])
-        self.plume_measurements.append(plume_measurement)
-        self.step += 1
-
-        if self.positions.data.size // 3 < 2:
+    def get_controls(self, noisy_states):
+        if self.plume_recorder.positions.data.size // 3 < 2:
             self.targets = np.array([s.position for s in noisy_states])
             controls = UAVControls(len(noisy_states), 'vel')
             controls.U.fill(0.0)
@@ -138,9 +144,10 @@ class UCBBased(object):
         if norm(self.targets - noisy_states[0].position) < \
                 self.target_precision:
             self.predictor.add_observations(
-                self.positions.data[self.last_prediction_update:].reshape(
-                    (-1, 3)),
-                self.plume_measurements.data[self.last_prediction_update:])
+                self.plume_recorder.positions.data[
+                    self.last_prediction_update:].reshape((-1, 3)),
+                self.plume_recorder.measurements.data[
+                    self.last_prediction_update:])
             self.last_prediction_update = self.step
 
             ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
@@ -168,11 +175,11 @@ class UCBBased(object):
 
 class DUCB(UCBBased):
     def __init__(
-            self, margin, predictor, grid_resolution, area, kappa, gamma,
-            target_precision, duration_in_steps=1000):
+            self, plume_recorder, margin, predictor, grid_resolution, area,
+            kappa, gamma, target_precision, duration_in_steps=1000):
         super(DUCB, self).__init__(
-            margin, predictor, grid_resolution, area, target_precision,
-            duration_in_steps)
+            plume_recorder, margin, predictor, grid_resolution, area,
+            target_precision, duration_in_steps)
         self.kappa = kappa
         self.gamma = gamma
 
@@ -198,11 +205,11 @@ class DUCB(UCBBased):
 
 class PDUCB(UCBBased):
     def __init__(
-            self, margin, predictor, grid_resolution, area, kappa, gamma,
-            epsilon, target_precision, duration_in_steps=1000):
+            self, plume_recorder, margin, predictor, grid_resolution, area,
+            kappa, gamma, epsilon, target_precision, duration_in_steps=1000):
         super(PDUCB, self).__init__(
-            margin, predictor, grid_resolution, area, target_precision,
-            duration_in_steps)
+            plume_recorder, margin, predictor, grid_resolution, area,
+            target_precision, duration_in_steps)
         self.kappa = kappa
         self.gamma = gamma
         self.epsilon = epsilon
@@ -232,11 +239,11 @@ class PDUCB(UCBBased):
 
 class PDUCB_log(UCBBased):
     def __init__(
-            self, margin, predictor, grid_resolution, area, kappa, gamma,
-            epsilon, target_precision, duration_in_steps=1000):
+            self, plume_recorder, margin, predictor, grid_resolution, area,
+            kappa, gamma, epsilon, target_precision, duration_in_steps=1000):
         super(PDUCB, self).__init__(
-            margin, predictor, grid_resolution, area, target_precision,
-            duration_in_steps)
+            plume_recorder, margin, predictor, grid_resolution, area,
+            target_precision, duration_in_steps)
         self.kappa = kappa
         self.gamma = gamma
         self.epsilon = epsilon
@@ -268,11 +275,11 @@ class PDUCB_log(UCBBased):
 
 class NDUCB(UCBBased):
     def __init__(
-            self, margin, predictor, grid_resolution, area, kappa, gamma,
-            epsilon, target_precision, duration_in_steps=1000):
+            self, plume_recorder, margin, predictor, grid_resolution, area,
+            kappa, gamma, epsilon, target_precision, duration_in_steps=1000):
         super(NDUCB, self).__init__(
-            margin, predictor, grid_resolution, area, target_precision,
-            duration_in_steps)
+            plume_recorder, margin, predictor, grid_resolution, area,
+            target_precision, duration_in_steps)
         self.kappa = kappa
         self.gamma = gamma
         self.epsilon = epsilon

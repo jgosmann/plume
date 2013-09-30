@@ -28,9 +28,10 @@ class FilterLevelAboveOrEqual(object):
 
 
 class Controller(object):
-    def __init__(self, client, movement_behavior):
+    def __init__(self, client, movement_behavior, plume_recorder):
         self.client = client
         self.movement_behavior = movement_behavior
+        self.plume_recorder = plume_recorder
         self.recorders = []
 
     def add_recorder(self, recorder):
@@ -45,9 +46,12 @@ class Controller(object):
     def run(self, num_steps):
         for step in xrange(num_steps):
             logger.info('Step %i', step + 1)
-            controls = self.movement_behavior.get_controls(
+            self.plume_recorder.record_plume(
                 self.client.noisy_state,
                 self.client.get_plume_sensor_outputs())
+            controls = self.movement_behavior.get_controls(
+                self.client.noisy_state,
+                )
             self.client.step(self.client.timestep, controls)
             for recorder in self.recorders:
                 recorder.record()
@@ -78,7 +82,7 @@ def do_simulation_run(trial, output_filename, conf, client):
         behavior = conf['behavior'](behaviors, predictor=predictor)
 
         client = ControlsRecorder(fileh, client, num_steps)
-        controller = Controller(client, behavior)
+        controller = Controller(client, behavior, plume_recorder)
         controller.init_new_sim(conf['seedlist'][trial])
 
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
