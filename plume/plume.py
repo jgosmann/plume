@@ -79,7 +79,11 @@ def do_simulation_run(trial, output_filename, conf, client):
         if 'priors' in conf:
             for i in range(len(conf['priors'])):
                 predictor.priors[i] = conf['priors'][i](prediction)
-        behavior = conf['behavior'](behaviors, predictor=predictor)
+        plume_recorder = behaviors.PlumeRecorder(num_steps)
+        fbehavior = conf['fbehavior'](
+            behaviors, plume_recorder, predictor=predictor)
+        behavior = conf['behavior'](
+            behaviors, plume_recorder, followup_behavior=fbehavior)
 
         client = ControlsRecorder(fileh, client, num_steps)
         controller = Controller(client, behavior, plume_recorder)

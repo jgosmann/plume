@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 from numpy.linalg import norm
 import numpy.random as rnd
@@ -7,6 +9,8 @@ from scipy.optimize import fmin_l_bfgs_b
 from datastructure import EnlargeableArray
 from nputil import meshgrid_nd
 from prediction import predict_on_volume
+
+logger = logging.getLogger(__name__)
 
 
 class VelocityTowardsWaypointController(object):
@@ -313,3 +317,40 @@ class NDUCB(UCBBased):
             self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
         return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
+
+
+class WindMeasuring(object):
+    def __init__(
+            self, plume_recorder, area, measurement_time, target_precision,
+            followup_behavior):
+        self.plume_recorder = plume_recorder
+        self.area = np.asarray(area)
+        self.measurement_time = measurement_time
+        self.followup_behavior = followup_behavior
+        self.stage = 0
+        self._controller = VelocityTowardsWaypointController(
+            3, 3, followup_behavior.get_effective_area())
+
+    def get_controls(self, noisy_states):
+        if self.stage == 0:
+            target = np.mean(self.area, axis=1)
+            if norm(noisy_states[0].position - target) < 1:
+                self.stage += 1
+            else:
+                return self._controller.get_controls(
+                    noisy_states, [target])
+        if self.stage > 0 and self.stage <= self.measurement_time:
+            self.start_pos = np.asarray(noisy_states[0].position)
+            controls = UAVControls(len(noisy_states), 'ctrl')
+            controls.U[:, :] = 0
+            controls.U[:, 2] = 0.5
+            controls.U[:, 4] = 12
+            self.stage += 1
+            return controls
+        if self.stage == self.measurement_time + 1:
+            self.end_pos = np.asarray(noisy_states[0].position)
+            self.wind_speed = (self.end_pos - self.start_pos) / \
+                self.measurement_time
+            logger.info('Wind speed estimate: {} {}'.format(
+                norm(self.wind_speed), self.wind_speed))
+        return self.followup_behavior.get_controls(noisy_states)
