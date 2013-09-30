@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 from numpy.linalg import norm
 import numpy.random as rnd
@@ -7,6 +9,8 @@ from scipy.optimize import fmin_l_bfgs_b
 from datastructure import EnlargeableArray
 from nputil import meshgrid_nd
 from prediction import predict_on_volume
+
+logger = logging.getLogger(__name__)
 
 
 class VelocityTowardsWaypointController(object):
@@ -306,3 +310,119 @@ class NDUCB(UCBBased):
             self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
         return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
+
+
+class SlicedPDUCB(object):
+    def __init__(
+            self, margin, predictor, grid_resolution, kappa, gamma, epsilon,
+            area, target_precision, duration_in_steps=1000):
+        self.margin = margin
+        self.predictor = predictor
+        self.grid_resolution = grid_resolution
+        self.area = area
+        self.target_precision = target_precision
+        self.expected_steps = duration_in_steps
+        self.step = 0
+        self.last_prediction_update = 0
+        self._controller = VelocityTowardsWaypointController(
+            3, 3, self.get_effective_area())
+        self.targets = np.array([[-130, 0, -40]])
+        self.slice = -1
+        self.steps_in_slice = 0
+        self.kappa = kappa
+        self.gamma = gamma
+        self.epsilon = epsilon
+        self.keep_spot = 20
+
+    def get_controls(self, noisy_states, plume_measurement):
+        if self.step == 0:
+            self.positions = EnlargeableArray(
+                (len(noisy_states), 3), self.expected_steps)
+            self.plume_measurements = EnlargeableArray(
+                (len(noisy_states),), self.expected_steps)
+
+        self.positions.append([s.position for s in noisy_states])
+        self.plume_measurements.append(plume_measurement)
+        self.step += 1
+        if self.slice >= 0:
+            self.steps_in_slice -= 1
+
+        if norm(self.targets - noisy_states[0].position) < \
+                self.target_precision:
+            self.keep_spot -= 1
+            if self.keep_spot <= 0:
+                dwx = self.plume_measurements.data[-20:]
+                self.predictor.add_observations(
+                    np.atleast_2d(np.mean(self.positions.data[-20:].reshape(
+                        (-1, 3)), axis=0)),
+                    np.atleast_2d(np.mean(self.plume_measurements.data[-20:])))
+                logger.warn('min: {}, max: {}, std: {}, mean: {}'.format(
+                    dwx.min(), dwx.max(), np.std(dwx), np.mean(dwx)))
+                self.last_prediction_update = self.step
+
+                if self.slice < 0 or self.steps_in_slice <= 0:
+                    ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
+                        self.get_effective_area()[1:], self.grid_resolution[1:])]
+                    y, z = meshgrid_nd(*ogrid)
+                    ducb, unused = self.calc_max(
+                        np.column_stack((y.flat, z.flat)), noisy_states)
+                    ducb *= -1
+                    wp_idx = np.unravel_index(np.argmax(ducb), y.shape)
+                    xs = np.array([y[wp_idx], z[wp_idx]])
+
+                    x2, unused, unused = fmin_l_bfgs_b(
+                        lambda x, s: self.calc_max(x, s), xs,
+                        args=(noisy_states,), bounds=self.get_effective_area()[1:])
+
+                    self.slice += 1
+                    self.steps_in_slice = 500
+
+                    self.targets = np.array(
+                        len(noisy_states) * [[-130 + self.slice * 10, x2[0], x2[1]]])
+                    self.keep_spot = 20
+                else:
+                    ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
+                        self.get_effective_area()[1:], self.grid_resolution[1:])]
+                    y, z = meshgrid_nd(*ogrid)
+                    ducb, unused = self.calc_neg_ucb(
+                        np.column_stack((y.flat, z.flat)), noisy_states)
+                    ducb *= -1
+                    wp_idx = np.unravel_index(np.argmax(ducb), y.shape)
+                    xs = np.array([y[wp_idx], z[wp_idx]])
+
+                    x2, unused, unused = fmin_l_bfgs_b(
+                        lambda x, s: self.calc_neg_ucb(x, s), xs,
+                        args=(noisy_states,), bounds=self.get_effective_area()[1:])
+                    self.targets = np.array(
+                        len(noisy_states) * [[-130 + self.slice * 10, x2[0], x2[1]]])
+                    self.keep_spot = 20
+
+        return self._controller.get_controls(noisy_states, self.targets)
+
+    def get_effective_area(self):
+        return self.area + np.array([self.margin, -self.margin])
+
+    def calc_neg_ucb(self, x, noisy_states):
+        x = np.atleast_2d(x)
+        x = np.hstack((len(x) * [[-130 + self.slice * 10]], x))
+        pos = np.atleast_2d(noisy_states[0].position)
+        pred, pred_derivative, mse, mse_derivative = self.predictor.predict(
+            x, eval_MSE=True, eval_derivatives=True)
+        sq_dist = np.maximum(0, -2 * np.dot(x, pos.T) + (
+            np.sum(np.square(x), 1)[:, None] +
+            np.sum(np.square(pos), 1)[None, :]))
+        ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
+            self.kappa * np.sqrt(mse)[:, None] + self.gamma * sq_dist
+        ucb_derivative = pred_derivative / (pred + self.epsilon) + \
+            self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
+            self.gamma * 2 * np.sqrt(sq_dist)
+        return -np.squeeze(ucb), -np.squeeze(ucb_derivative[:, :, :2])
+
+    def calc_max(self, x, noisy_states):
+        x = np.atleast_2d(x)
+        x = np.hstack((len(x) * [[-130 + self.slice * 10]], x))
+        pred, pred_derivative = self.predictor.predict(
+            x, eval_MSE=False, eval_derivatives=True)
+        ucb = np.maximum(0, pred)
+        ucb_derivative = pred_derivative
+        return -np.squeeze(ucb), -np.squeeze(ucb_derivative[:, :, :2])
