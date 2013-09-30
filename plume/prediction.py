@@ -272,6 +272,19 @@ class AnisotropicExponentialKernel(object):
             np.sum(np.square(x2_proj), 1)[None, :])))
 
 
+class StationaryPlumeKernel(object):
+    def __init__(self):
+        pass
+
+    def __call__(self, x1, x2):
+        delta0 = np.abs(x1[:, None, 0] - x2[None, :, 0])
+        delta0 = 0.33 * (delta0 + 1) ** 0.86
+        d = np.sum(np.square(x1[:, :2]), 1)[:, None] + \
+            np.sum(np.square(x2[:, :2]), 1)[None, :] - \
+            2 * np.dot(x1[:, :2], x2[:, :2].T)
+        return 1.0 / delta0 * np.exp(-d / 100)
+
+
 class PlumeKernel(object):
     def __init__(
             self, source_pos, wind_direction, wind_speed, a, b, variance=1.0):
