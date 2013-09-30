@@ -51,6 +51,55 @@ class VelocityTowardsWaypointController(object):
         return v
 
 
+class DifferentiableFn(object):
+    def _eval_common_terms(self, *args, **kwargs):
+        raise NotImplementedError()
+
+    def _eval_fn(self, common_terms, *args, **kwargs):
+        raise NotImplementedError()
+
+    def _eval_derivative(self, common_terms, *args, **kwargs):
+        raise NotImplementedError()
+
+    def __call__(self, *args, **kwargs):
+        return self._eval_fn(
+            self._eval_common_terms(*args, **kwargs), *args, **kwargs)
+
+    def eval_with_derivative(self, *args, **kwargs):
+        common_terms = self._eval_common_terms(*args, **kwargs)
+        return self._eval_fn(common_terms, *args, **kwargs), \
+            self._eval_derivative(common_terms, *args, **kwargs)
+
+
+class TargetChooser(object):
+    def new_targets(self, noisy_states):
+        raise NotImplementedError()
+
+
+class AcquisitionFnTargetChooser(TargetChooser):
+    def __init__(self, acquisition_fn, area, margin, grid_resolution):
+        self.acquisition_fn = acquisition_fn
+        self.area = area
+        self.margin = margin
+        self.grid_resolution = grid_resolution
+
+    def new_targets(self, noisy_states):
+        ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
+            self.get_effective_area(), self.grid_resolution)]
+        x, y, z = meshgrid_nd(*ogrid)
+        acq = self.acquisition_fn(
+            np.column_stack((x.flat, y.flat, z.flat)), noisy_states)
+        max_idx = np.unravel_index(np.argmin(acq), x.shape)
+        x0 = np.array([x[max_idx], y[max_idx], z[max_idx]])
+
+        x, unused, unused = fmin_l_bfgs_b(
+            self.acquisition_fn.eval_with_derivative, x0,
+            args=(noisy_states,), bounds=self.get_effective_area())
+
+    def get_effective_area(self):
+        return self.area + np.array([self.margin, -self.margin])
+
+
 class UCBBased(object):
     def __init__(
             self, margin, predictor, grid_resolution, area, target_precision,
