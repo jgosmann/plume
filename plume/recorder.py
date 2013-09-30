@@ -60,12 +60,13 @@ class GeneralRecorder(object):
 
 
 def store_obj(fileh, loc, obj):
-    for k, v in obj.items():
+    loc = fileh.getNode(loc)
+    loc._v_attrs.class_name = obj.__class__.__name__
+    loc._v_attrs.class_module = obj.__class__.__module__
+    for k, v in obj.__dict__.items():
         if hasattr(v, '__dict__'):
             group = fileh.createGroup(loc, k)
             store_obj(fileh, group, v)
-            group._v_attrs.class_name = v.__class__.name
-            group._v_attrs.class_module = v.__class__.__module__
         else:
             fileh.createArray(loc, k, v)
 
@@ -74,10 +75,10 @@ def load_obj(group):
     mod = import_module(group._v_attrs.class_module)
     cls = getattr(mod, group._v_attrs.class_name)
     obj = cls()
-    for child in group._v_leaves:
-        setattr(obj, child._v_name, child.read())
-    for child in group._v_groups:
-        setattr(obj, child._v_name, load_obj(child))
+    for name, child in group._v_leaves.items():
+        setattr(obj, name, child.read())
+    for name, child in group._v_groups.items():
+        setattr(obj, name, load_obj(child))
     return obj
 
 
