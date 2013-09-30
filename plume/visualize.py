@@ -30,6 +30,7 @@ import vtk
 from nputil import meshgrid_nd
 import prediction
 from prediction import predict_on_volume
+import recorder
 
 
 class RotateAroundZInteractor(tvtk.InteractorStyleTrackballCamera):
@@ -307,6 +308,7 @@ class PlumeVisualizer(HasTraits):
 
     def calc_estimation(self, data):
         predictor = recorder.load_obj(data.root.gp)
+        area = data.root.conf[0]['global_conf']['area']
         return predict_on_volume(predictor, area, [30, 30, 20])
 
     @staticmethod
