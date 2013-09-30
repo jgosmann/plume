@@ -272,6 +272,117 @@ class AnisotropicExponentialKernel(object):
             np.sum(np.square(x2_proj), 1)[None, :])))
 
 
+class PlumeKernel(object):
+    def __init__(
+            self, source_pos, wind_direction, wind_speed, a, b, variance=1.0):
+        self.source_pos = source_pos
+        self.wind_direction = wind_direction
+        self.wind_speed = wind_speed
+        self.a = a
+        self.b = b
+        self.variance = variance
+
+    def get_params(self):
+        #return [self.a, self.b]
+        return self.source_pos
+        #return np.concatenate((self.source_pos, [
+            #self.wind_direction, self.wind_speed, self.a, self.b,
+            #self.variance]))
+
+    def set_params(self, values):
+        self.source_pos = values[:3]
+        #self.a, self.b = values
+        #self.wind_direction, self.wind_speed, self.a, self.b, self.variance = \
+            #values[3:]
+
+    params = property(get_params, set_params)
+
+    def __call__(self, x1, x2, eval_derivative=False):
+        if eval_derivative:
+            raise NotImplementedError()
+        c = self.variance * (1 - np.abs(
+            self.calc_concentration(x1)[:, None] -
+            self.calc_concentration(x2)[None, :]))
+        #c = self.calc_concentration(x1)[:, None] * \
+            #self.calc_concentration(x2)[None, :]
+        c[c < 0] = 0
+        #print(c.min())
+        return c
+
+    def diag(self, x1, x2):
+        if x1 is x2:
+            return self.variance * np.ones(len(x1))
+
+        return self.variance * (1 - np.abs(
+            self.calc_concentration(x1) - self.calc_concentration(x2)))
+
+    def param_derivatives(self, x1, x2):
+        c1 = self.calc_concentration(x1)
+        c2 = self.calc_concentration(x2)
+        dc1 = self._c_deriv(x1)
+        dc2 = self._c_deriv(x2)
+        c_diff = c1[:, None] - c2[None, :]
+        c_diff[c_diff == 0] = 1
+        c_diff /= np.abs(c_diff)
+        return -self.variance * (dc1.T[:, :, None] - dc2.T[:, None, :]) * \
+            c_diff[None, :, :]
+
+    def _c_deriv(self, pos):
+        pos_prime = pos
+        source_pos_prime = self.source_pos
+
+        x_diff = (-pos_prime[:, 0] - source_pos_prime[0])
+        where_invalid = x_diff <= 0
+        x_diff[where_invalid] = 1  # prevent division by 0
+        x_dist = 2 * self.a * (x_diff ** self.b)
+
+        yc = (-pos_prime[:, 1] - source_pos_prime[1]) ** 2 / x_dist
+        zc1 = (pos_prime[:, 2] - source_pos_prime[2]) ** 2 / x_dist
+        zc2 = (pos_prime[:, 2] + source_pos_prime[2]) ** 2 / x_dist
+        c = np.exp(-yc) * (np.exp(-zc1) + np.exp(-zc2)) / x_dist
+            # / np.pi / self.wind_speed
+        c[where_invalid] = 0
+
+        outer_deriv = (yc + zc1 - 1) / (x_dist ** 2) * np.exp(-yc - zc1) + \
+            (yc + zc2 - 1) / (x_dist ** 2) * np.exp(-yc - zc2)
+        inner_deriv = 2 * self.a * self.b * (x_diff ** (self.b - 1))
+        x_deriv = inner_deriv * outer_deriv
+        y_deriv = 2 * (pos_prime[:, 1] - source_pos_prime[1]) * c
+        z_deriv = 2 * np.exp(-yc) / x_dist * (
+            (pos_prime[:, 2] - source_pos_prime[2]) * np.exp(-zc1) +
+            (pos_prime[:, 2] + source_pos_prime[2]) * np.exp(-zc2))
+        x_deriv[where_invalid] = 0
+        #y_deriv[where_invalid] = 0
+        #z_deriv[where_invalid] = 0
+        y_deriv[:] = 0
+        z_deriv[:] = 0
+
+        return -np.column_stack((x_deriv, y_deriv, z_deriv))
+
+    def calc_concentration(self, pos):
+        #pos_prime = self.to_wind_ref_frame(pos)
+        #source_pos_prime = self.to_wind_ref_frame(self.source_pos)
+        pos_prime = pos
+        source_pos_prime = self.source_pos
+
+        x_diff = (-pos_prime[:, 0] - source_pos_prime[0])
+        where_invalid = x_diff <= 0
+        x_diff[where_invalid] = 1  # prevent division by 0
+        x_dist = 2 * self.a * (x_diff ** self.b)
+
+        yc = (-pos_prime[:, 1] - source_pos_prime[1]) ** 2 / x_dist
+        zc1 = (pos_prime[:, 2] - source_pos_prime[2]) ** 2 / x_dist
+        zc2 = (pos_prime[:, 2] + source_pos_prime[2]) ** 2 / x_dist
+        c = np.exp(-yc) * (np.exp(-zc1) + np.exp(-zc2)) / x_dist
+            # / np.pi / self.wind_speed
+        c[where_invalid] = 0
+        return c
+
+    def to_wind_ref_frame(self, pos):
+        return pos * np.array(
+            [np.cos(self.wind_direction), np.sin(self.wind_direction), 1])
+
+
 class UniformLogPrior(object):
     def __call__(self, x):
         return 0
