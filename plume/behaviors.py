@@ -176,11 +176,9 @@ class UCBBased(object):
         raise NotImplementedError()
 
 
-class DUCB(DifferentiableFn):
-    def __init__(self, predictor, kappa, gamma):
+class DUCBBased(DifferentiableFn):
+    def __init__(self, predictor):
         self.predictor = predictor
-        self.kappa = kappa
-        self.gamma = gamma
 
     def _eval_common_terms(self, eval_fn, eval_derivative, x, noisy_states):
         x = np.atleast_2d(x)
@@ -192,14 +190,21 @@ class DUCB(DifferentiableFn):
             pred, mse = self.predictor.predict(
                 x, eval_MSE=True, eval_derivatives=False)
             pred_derivative = mse_derivative = None
-        dist = np.sqrt(-2 * np.dot(x, pos.T) + (
+        sq_dist = -2 * np.dot(x, pos.T) + (
             np.sum(np.square(x), 1)[:, None] +
-            np.sum(np.square(pos), 1)[None, :]))
-        return (pred, pred_derivative, mse, mse_derivative, dist)
+            np.sum(np.square(pos), 1)[None, :])
+        return (pred, pred_derivative, mse, mse_derivative, sq_dist)
+
+
+class DUCB(DUCBBased):
+    def __init__(self, predictor, kappa, gamma):
+        super(DUCB, self).__init__(predictor)
+        self.kappa = kappa
+        self.gamma = gamma
 
     def _eval_fn(self, common_terms, x, noisy_states):
-        pred, unused, mse, unused, dist = common_terms
-        ucb = pred + self.kappa * mse[:, None] + self.gamma * dist
+        pred, unused, mse, unused, sq_dist = common_terms
+        ucb = pred + self.kappa * mse[:, None] + self.gamma * np.sqrt(dist)
         return np.squeeze(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
@@ -207,39 +212,26 @@ class DUCB(DifferentiableFn):
         pos = np.atleast_2d(noisy_states[0].position)
         unused, pred_derivative, mse, mse_derivative, dist = common_terms
         ucb_derivative = pred_derivative + self.kappa * mse_derivative + \
-            self.gamma * (x - pos) / dist
+            self.gamma * (x - pos) / np.sqrt(dist)
         return np.squeeze(ucb_derivative)
 
 
-class PDUCB(UCBBased):
-    def __init__(
-            self, margin, predictor, grid_resolution, area, kappa, gamma,
-            epsilon, target_precision, duration_in_steps=1000):
-        super(PDUCB, self).__init__(
-            margin, predictor, grid_resolution, area, target_precision,
-            duration_in_steps)
+class PDUCB(DUCBBased):
+    def __init__(self, predictor, kappa, gamma, epsilon):
+        super(DUCBBased, self).__init__(predictor)
         self.kappa = kappa
         self.gamma = gamma
         self.epsilon = epsilon
 
-    def __repr__(self):
-        return self.__class__.__name__ + '(margin=%(margin)r, ' \
-            'predictor=%(predictor)r, grid_resolution=%(grid_resolution)r, ' \
-            'area=%(area)r, kappa=%(kappa)r, gamma=%(gamma)r, ' \
-            'epsilon=%(epsilon)r, ' \
-            'target_precision=%(target_precision)r)' % self.__dict__
-
-    def calc_neg_ucb(self, x, noisy_states):
-        x = np.atleast_2d(x)
-        pos = np.atleast_2d(noisy_states[0].position)
-        pred, pred_derivative, mse, mse_derivative = self.predictor.predict(
-            x, eval_MSE=True, eval_derivatives=True)
-        sq_dist = np.maximum(0, -2 * np.dot(x, pos.T) + (
-            np.sum(np.square(x), 1)[:, None] +
-            np.sum(np.square(pos), 1)[None, :]))
+    def _eval_fn(self, common_terms, x, noisy_states):
+        pred, unused, mse, unused, sq_dist = common_terms
         ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
             self.kappa * np.sqrt(mse)[:, None] + self.gamma * sq_dist
+        return np.squeeze(ucb)
+
+    def _eval_derivative(self, common_terms, x, noisy_states):
+        unused, pred_derivative, unused, mse_derivative, sq_dist = common_terms
         ucb_derivative = pred_derivative / (pred + self.epsilon) + \
             self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
-        return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
+        return np.squeeze(ucb_derivative)
