@@ -75,12 +75,15 @@ class NegateFn(DifferentiableFn):
     def __init__(self, fn):
         self.fn = fn
 
+    def _eval_common_terms(self, eval_fn, eval_derivative, *args, **kwargs):
+        return self.fn._eval_common_terms(
+            eval_fn, eval_derivative, *args, **kwargs)
+
     def _eval_fn(self, common_terms, *args, **kwargs):
-        return -super(NegateFn, self)._eval_fn(common_terms, *args, **kwargs)
+        return -self.fn._eval_fn(common_terms, *args, **kwargs)
 
     def _eval_derivative(self, common_terms, *args, **kwargs):
-        return -super(NegateFn, self)._eval_derivative(
-            common_terms, *args, **kwargs)
+        return -self.fn._eval_derivative(common_terms, *args, **kwargs)
 
 
 class TargetChooser(object):
@@ -105,7 +108,7 @@ class AcquisitionFnTargetChooser(TargetChooser):
         x0 = np.array([x[max_idx], y[max_idx], z[max_idx]])
 
         x, unused, unused = fmin_l_bfgs_b(
-            NegateFn(self.acquisition_fn.eval_with_derivative), x0,
+            NegateFn(self.acquisition_fn).eval_with_derivative, x0,
             args=(noisy_states,), bounds=self.get_effective_area())
 
     def get_effective_area(self):
@@ -154,7 +157,7 @@ class DUCB(DUCBBased):
 
 class PDUCB(DUCBBased):
     def __init__(self, predictor, kappa, gamma, epsilon):
-        super(DUCBBased, self).__init__(predictor)
+        super(PDUCB, self).__init__(predictor)
         self.kappa = kappa
         self.gamma = gamma
         self.epsilon = epsilon
@@ -181,14 +184,47 @@ class FollowWaypoints(object):
         if velocity_controller is None:
             self.velocity_controller = VelocityTowardsWaypointController(
                 6, 6, self.target_chooser.get_effective_area())
+        self.observers = []
+        self.num_step = 0
 
     def step(self, noisy_states):
+        self.num_step += 1
+
+        for observer in self.observers:
+            observer.step(noisy_states)
+
         if self.velocity_controller.targets is None:
             update_targets = True
         else:
             dist_to_target = norm(
                 self.velocity_controller.targets - noisy_states[0].position)
             update_targets = dist_to_target < self.target_precision
+        if self.num_step < 2:
+            update_targets = False
         if update_targets:
+            for observer in self.observers:
+                observer.target_reached()
             self.velocity_controller.targets = self.target_chooser.new_targets(
                 noisy_states)
+
+
+class BatchPredictionUpdater(object):
+    def __init__(self, predictor, plume_recorder):
+        self.predictor = predictor
+        self.plume_recorder = plume_recorder
+        self.last_update = 0
+
+    def step(self, noisy_states):
+        can_do_first_training = self.plume_recorder.positions.shape[1] > 1
+        if not self.predictor.trained and can_do_first_training:
+            self.update_prediction()
+
+    def target_reached(self):
+        if self.predictor.trained:
+            self.update_prediction()
+
+    def update_prediction(self):
+        self.predictor.add_observations(
+            self.plume_recorder.positions[0, self.last_update:, :],
+            self.plume_recorder.plume_measurements[0, self.last_update:, None])
+        self.last_update = self.plume_recorder.positions.shape[1]

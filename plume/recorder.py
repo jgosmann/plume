@@ -96,7 +96,10 @@ class TargetsRecorder(object):
             title='Target position for each UAV and timestep.')
 
     def record(self):
-        self._targets.append(np.expand_dims(self.behavior.targets, 1))
+        if self.behavior.targets is None:
+            self._targets.append(self.num_uavs * [[3 * [np.nan]]])
+        else:
+            self._targets.append(np.expand_dims(self.behavior.targets, 1))
 
     targets = property(lambda self: self._targets.read())
 

@@ -28,8 +28,9 @@ class FilterLevelAboveOrEqual(object):
 
 
 class Controller(object):
-    def __init__(self, client, movement_behavior):
+    def __init__(self, client, controller, movement_behavior):
         self.client = client
+        self.controller = controller
         self.movement_behavior = movement_behavior
         self.recorders = []
 
@@ -45,12 +46,12 @@ class Controller(object):
     def run(self, num_steps):
         for step in xrange(num_steps):
             logger.info('Step %i', step + 1)
-            controls = self.movement_behavior.get_controls(
-                self.client.noisy_state,
-                self.client.get_plume_sensor_outputs())
-            self.client.step(self.client.timestep, controls)
             for recorder in self.recorders:
                 recorder.record()
+            self.controller.step(self.client.noisy_state)
+            controls = self.movement_behavior.get_controls(
+                self.client.noisy_state)
+            self.client.step(self.client.timestep, controls)
 
     def step_keeping_position(self):
         c = UAVControls(self.client.numUAVs, 'vel')
@@ -75,23 +76,34 @@ def do_simulation_run(trial, output_filename, conf, client):
         if 'priors' in conf:
             for i in range(len(conf['priors'])):
                 predictor.priors[i] = conf['priors'][i](prediction)
-        behavior = conf['behavior'](behaviors, predictor=predictor)
-
-        client = ControlsRecorder(fileh, client, num_steps)
-        controller = Controller(client, behavior)
-        controller.init_new_sim(conf['seedlist'][trial])
 
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
         recorder.init(conf['global_conf']['area'])
-        controller.add_recorder(recorder)
+
+        target_chooser = behaviors.AcquisitionFnTargetChooser(
+            conf['acquisition_fn'](behaviors, predictor),
+            conf['global_conf']['area'], conf['margin'],
+            conf['grid_resolution'])
+        controller = behaviors.FollowWaypoints(
+            target_chooser, conf['target_precision'])
+        controller.observers.append(behaviors.BatchPredictionUpdater(
+            predictor, recorder))
+
+        behavior = controller.velocity_controller
+
+        client = ControlsRecorder(fileh, client, num_steps)
+        sim_controller = Controller(client, controller, behavior)
+        sim_controller.init_new_sim(conf['seedlist'][trial])
+
+        sim_controller.add_recorder(recorder)
 
         if hasattr(behavior, 'targets'):
             targets_recorder = TargetsRecorder(
                 fileh, behavior, client.numUAVs, num_steps)
             targets_recorder.init()
-            controller.add_recorder(targets_recorder)
+            sim_controller.add_recorder(targets_recorder)
 
-        controller.run(num_steps)
+        sim_controller.run(num_steps)
         store_obj(fileh, fileh.createGroup('/', 'gp'), predictor)
 
 
