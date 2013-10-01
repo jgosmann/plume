@@ -3,7 +3,6 @@ from numpy.linalg import norm
 from qrsim.tcpclient import UAVControls
 from scipy.optimize import fmin_l_bfgs_b
 
-from datastructure import EnlargeableArray
 from nputil import meshgrid_nd
 
 
@@ -113,70 +112,6 @@ class AcquisitionFnTargetChooser(TargetChooser):
         return self.area + np.array([self.margin, -self.margin])
 
 
-class UCBBased(object):
-    def __init__(
-            self, margin, predictor, grid_resolution, area, target_precision,
-            duration_in_steps=1000):
-        self.margin = margin
-        self.predictor = predictor
-        self.grid_resolution = grid_resolution
-        self.area = area
-        self.target_precision = target_precision
-        self.expected_steps = duration_in_steps
-        self.step = 0
-        self.last_prediction_update = 0
-        self._controller = VelocityTowardsWaypointController(
-            3, 3, self.get_effective_area())
-        self.targets = None
-
-    def get_controls(self, noisy_states, plume_measurement):
-        if self.step == 0:
-            self.positions = EnlargeableArray(
-                (len(noisy_states), 3), self.expected_steps)
-            self.plume_measurements = EnlargeableArray(
-                (len(noisy_states),), self.expected_steps)
-
-        self.positions.append([s.position for s in noisy_states])
-        self.plume_measurements.append(plume_measurement)
-        self.step += 1
-
-        if self.positions.data.size // 3 < 2:
-            self.targets = np.array([s.position for s in noisy_states])
-            controls = UAVControls(len(noisy_states), 'vel')
-            controls.U.fill(0.0)
-            return controls
-
-        if norm(self.targets - noisy_states[0].position) < \
-                self.target_precision:
-            self.predictor.add_observations(
-                self.positions.data[self.last_prediction_update:].reshape(
-                    (-1, 3)),
-                self.plume_measurements.data[self.last_prediction_update:])
-            self.last_prediction_update = self.step
-
-            ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
-                self.get_effective_area(), self.grid_resolution)]
-            x, y, z = meshgrid_nd(*ogrid)
-            ducb, unused = self.calc_neg_ucb(
-                np.column_stack((x.flat, y.flat, z.flat)), noisy_states)
-            ducb *= -1
-            wp_idx = np.unravel_index(np.argmax(ducb), x.shape)
-            xs = np.array([x[wp_idx], y[wp_idx], z[wp_idx]])
-
-            x, unused, unused = fmin_l_bfgs_b(
-                lambda x, s: self.calc_neg_ucb(x, s), xs,
-                args=(noisy_states,), bounds=self.get_effective_area())
-            self.targets = np.array(len(noisy_states) * [x])
-
-        return self._controller.get_controls(noisy_states, self.targets)
-
-    def get_effective_area(self):
-        return self.area + np.array([self.margin, -self.margin])
-
-    def calc_neg_ucb(self, x, noisy_states):
-        raise NotImplementedError()
-
-
 class DUCBBased(DifferentiableFn):
     def __init__(self, predictor):
         self.predictor = predictor
@@ -236,3 +171,24 @@ class PDUCB(DUCBBased):
             self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
         return np.squeeze(ucb_derivative)
+
+
+class FollowWaypoints(object):
+    def __init__(
+            self, target_chooser, target_precision, velocity_controller=None):
+        self.target_chooser = target_chooser
+        self.target_precision = target_precision
+        if velocity_controller is None:
+            self.velocity_controller = VelocityTowardsWaypointController(
+                6, 6, self.target_chooser.get_effective_area())
+
+    def step(self, noisy_states):
+        if self.velocity_controller.targets is None:
+            update_targets = True
+        else:
+            dist_to_target = norm(
+                self.velocity_controller.targets - noisy_states[0].position)
+            update_targets = dist_to_target < self.target_precision
+        if update_targets:
+            self.velocity_controller.targets = self.target_chooser.new_targets(
+                noisy_states)
