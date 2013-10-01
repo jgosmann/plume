@@ -52,8 +52,8 @@ class VelocityTowardsWaypointController(object):
 
 
 class DifferentiableFn(object):
-    def _eval_common_terms(self, *args, **kwargs):
-        raise NotImplementedError()
+    def _eval_common_terms(self, eval_fn, eval_derivative, *args, **kwargs):
+        pass
 
     def _eval_fn(self, common_terms, *args, **kwargs):
         raise NotImplementedError()
@@ -69,6 +69,18 @@ class DifferentiableFn(object):
         common_terms = self._eval_common_terms(*args, **kwargs)
         return self._eval_fn(common_terms, *args, **kwargs), \
             self._eval_derivative(common_terms, *args, **kwargs)
+
+
+class NegateFn(DifferentiableFn):
+    def __init__(self, fn):
+        self.fn = fn
+
+    def _eval_fn(self, common_terms, *args, **kwargs):
+        return -super(NegateFn, self)._eval_fn(common_terms, *args, **kwargs)
+
+    def _eval_derivative(self, common_terms, *args, **kwargs):
+        return -super(NegateFn, self)._eval_derivative(
+            common_terms, *args, **kwargs)
 
 
 class TargetChooser(object):
@@ -89,11 +101,11 @@ class AcquisitionFnTargetChooser(TargetChooser):
         x, y, z = meshgrid_nd(*ogrid)
         acq = self.acquisition_fn(
             np.column_stack((x.flat, y.flat, z.flat)), noisy_states)
-        max_idx = np.unravel_index(np.argmin(acq), x.shape)
+        max_idx = np.unravel_index(np.argmax(acq), x.shape)
         x0 = np.array([x[max_idx], y[max_idx], z[max_idx]])
 
         x, unused, unused = fmin_l_bfgs_b(
-            self.acquisition_fn.eval_with_derivative, x0,
+            NegateFn(self.acquisition_fn.eval_with_derivative), x0,
             args=(noisy_states,), bounds=self.get_effective_area())
 
     def get_effective_area(self):
@@ -164,34 +176,39 @@ class UCBBased(object):
         raise NotImplementedError()
 
 
-class DUCB(UCBBased):
-    def __init__(
-            self, margin, predictor, grid_resolution, area, kappa, gamma,
-            target_precision, duration_in_steps=1000):
-        super(DUCB, self).__init__(
-            margin, predictor, grid_resolution, area, target_precision,
-            duration_in_steps)
+class DUCB(DifferentiableFn):
+    def __init__(self, predictor, kappa, gamma):
+        self.predictor = predictor
         self.kappa = kappa
         self.gamma = gamma
 
-    def __repr__(self):
-        return self.__class__.__name__ + '(margin=%(margin)r, ' \
-            'predictor=%(predictor)r, grid_resolution=%(grid_resolution)r, ' \
-            'area=%(area)r, kappa=%(kappa)r, gamma=%(gamma)r, ' \
-            'target_precision=%(target_precision)r)' % self.__dict__
-
-    def calc_neg_ucb(self, x, noisy_states):
+    def _eval_common_terms(self, eval_fn, eval_derivative, x, noisy_states):
         x = np.atleast_2d(x)
         pos = np.atleast_2d(noisy_states[0].position)
-        pred, pred_derivative, mse, mse_derivative = self.predictor.predict(
-            x, eval_MSE=True, eval_derivatives=True)
+        if eval_derivative:
+            pred, pred_derivative, mse, mse_derivative = \
+                self.predictor.predict(x, eval_MSE=True, eval_derivatives=True)
+        else:
+            pred, mse = self.predictor.predict(
+                x, eval_MSE=True, eval_derivatives=False)
+            pred_derivative = mse_derivative = None
         dist = np.sqrt(-2 * np.dot(x, pos.T) + (
             np.sum(np.square(x), 1)[:, None] +
             np.sum(np.square(pos), 1)[None, :]))
+        return (pred, pred_derivative, mse, mse_derivative, dist)
+
+    def _eval_fn(self, common_terms, x, noisy_states):
+        pred, unused, mse, unused, dist = common_terms
         ucb = pred + self.kappa * mse[:, None] + self.gamma * dist
+        return np.squeeze(ucb)
+
+    def _eval_derivative(self, common_terms, x, noisy_states):
+        x = np.atleast_2d(x)
+        pos = np.atleast_2d(noisy_states[0].position)
+        unused, pred_derivative, mse, mse_derivative, dist = common_terms
         ucb_derivative = pred_derivative + self.kappa * mse_derivative + \
             self.gamma * (x - pos) / dist
-        return -np.squeeze(ucb), -np.squeeze(ucb_derivative)
+        return np.squeeze(ucb_derivative)
 
 
 class PDUCB(UCBBased):
