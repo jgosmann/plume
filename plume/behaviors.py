@@ -63,10 +63,11 @@ class DifferentiableFn(object):
 
     def __call__(self, *args, **kwargs):
         return self._eval_fn(
-            self._eval_common_terms(*args, **kwargs), *args, **kwargs)
+            self._eval_common_terms(True, False, *args, **kwargs),
+            *args, **kwargs)
 
     def eval_with_derivative(self, *args, **kwargs):
-        common_terms = self._eval_common_terms(*args, **kwargs)
+        common_terms = self._eval_common_terms(True, True, *args, **kwargs)
         return self._eval_fn(common_terms, *args, **kwargs), \
             self._eval_derivative(common_terms, *args, **kwargs)
 
@@ -204,7 +205,7 @@ class DUCB(DUCBBased):
 
     def _eval_fn(self, common_terms, x, noisy_states):
         pred, unused, mse, unused, sq_dist = common_terms
-        ucb = pred + self.kappa * mse[:, None] + self.gamma * np.sqrt(dist)
+        ucb = pred + self.kappa * mse[:, None] + self.gamma * np.sqrt(sq_dist)
         return np.squeeze(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
@@ -230,7 +231,7 @@ class PDUCB(DUCBBased):
         return np.squeeze(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
-        unused, pred_derivative, unused, mse_derivative, sq_dist = common_terms
+        pred, pred_derivative, mse, mse_derivative, sq_dist = common_terms
         ucb_derivative = pred_derivative / (pred + self.epsilon) + \
             self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
