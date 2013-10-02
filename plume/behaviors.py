@@ -242,3 +242,18 @@ class BatchPredictionUpdater(object):
             self.noisy_positions.data[self.last_update:, 0, :],
             self.plume_recorder.plume_measurements[0, self.last_update:, None])
         self.last_update = len(self.noisy_positions.data)
+
+
+class TargetMeasurementPredictionUpdater(object):
+    def __init__(self, predictor, plume_recorder):
+        self.predictor = predictor
+        self.plume_recorder = plume_recorder
+        self.noisy_positions = None
+
+    def step(self, noisy_states):
+        self.noisy_positions = np.array([s.position for s in noisy_states])
+
+    def target_reached(self):
+        self.predictor.add_observations(
+            self.noisy_positions,
+            self.plume_recorder.plume_measurements[:, -1, None])
