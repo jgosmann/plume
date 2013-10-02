@@ -10,9 +10,8 @@ from qrsim.tcpclient import UAVControls
 import tables
 
 import behaviors
-from config import load_config
+from config import instantiate, load_config
 from client import TaskPlumeClient
-import prediction
 from recorder import ControlsRecorder, store_obj, TargetsRecorder, \
     TaskPlumeRecorder
 
@@ -69,23 +68,24 @@ def do_simulation_run(trial, output_filename, conf, client):
             '/', 'repeat', [trial], title='Number of repeat run.')
 
         num_steps = conf['global_conf']['duration_in_steps']
-        kernel = conf['kernel'](prediction)
-        predictor = conf['predictor'](prediction, kernel)
+        kernel = instantiate(*conf['kernel'])
+        predictor = instantiate(*conf['predictor'], prefix_args=(kernel,))
         if 'bounds' in conf:
             predictor.bounds = conf['bounds']
         if 'priors' in conf:
             for i in range(len(conf['priors'])):
-                predictor.priors[i] = conf['priors'][i](prediction)
+                predictor.priors[i] = instantiate(*conf['priors'][i])
 
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
 
         target_chooser = behaviors.AcquisitionFnTargetChooser(
-            conf['acquisition_fn'](behaviors, predictor),
+            instantiate(*conf['acquisition_fn'], predictor=predictor),
             conf['global_conf']['area'], conf['margin'],
             conf['grid_resolution'])
         controller = behaviors.FollowWaypoints(
             target_chooser, conf['target_precision'])
-        updater = conf['updater'](behaviors, predictor, recorder)
+        updater = instantiate(
+            *conf['updater'], predictor=predictor, plume_recorder=recorder)
         controller.observers.append(updater)
 
         behavior = controller.velocity_controller

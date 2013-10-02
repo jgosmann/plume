@@ -1,17 +1,16 @@
+from importlib import import_module
 from types import ModuleType
+
 import numpy as np
 
 
-class ConfObj(object):
-    def __init__(self, cls, *args, **kwargs):
-        self.cls = cls
-        self.args = args
-        self.kwargs = kwargs
-
-    def __call__(self, module, *prefix_args, **update_kwargs):
-        kwargs = self.kwargs.copy()
-        kwargs.update(update_kwargs)
-        return getattr(module, self.cls)(*(prefix_args + self.args), **kwargs)
+def instantiate(
+        module_name, class_name, args=(), kwargs={}, prefix_args=(),
+        **additional_args):
+    module = import_module(module_name)
+    additional_args.update(kwargs)
+    return getattr(module, class_name)(
+        *(prefix_args + args), **additional_args)
 
 
 def load_config(filename):
