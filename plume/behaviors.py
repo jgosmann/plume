@@ -1,9 +1,13 @@
+import logging
+
 import numpy as np
 from numpy.linalg import norm
 from qrsim.tcpclient import UAVControls
 from scipy.optimize import fmin_l_bfgs_b
 
-from nputil import meshgrid_nd
+from nputil import GrowingArray, meshgrid_nd
+
+logger = logging.getLogger(__name__)
 
 
 class VelocityTowardsWaypointController(object):
@@ -111,6 +115,8 @@ class AcquisitionFnTargetChooser(TargetChooser):
             NegateFn(self.acquisition_fn).eval_with_derivative, x0,
             args=(noisy_states,), bounds=self.get_effective_area())
 
+        return [x]
+
     def get_effective_area(self):
         return self.area + np.array([self.margin, -self.margin])
 
@@ -183,7 +189,7 @@ class FollowWaypoints(object):
         self.target_precision = target_precision
         if velocity_controller is None:
             self.velocity_controller = VelocityTowardsWaypointController(
-                6, 6, self.target_chooser.get_effective_area())
+                3, 3, self.target_chooser.get_effective_area())
         self.observers = []
         self.num_step = 0
 
@@ -197,7 +203,7 @@ class FollowWaypoints(object):
             update_targets = True
         else:
             dist_to_target = norm(
-                self.velocity_controller.targets - noisy_states[0].position)
+                self.velocity_controller.targets[0] - noisy_states[0].position)
             update_targets = dist_to_target < self.target_precision
         if self.num_step < 2:
             update_targets = False
@@ -206,6 +212,8 @@ class FollowWaypoints(object):
                 observer.target_reached()
             self.velocity_controller.targets = self.target_chooser.new_targets(
                 noisy_states)
+            logger.info('Updated target {}'.format(
+                self.velocity_controller.targets))
 
 
 class BatchPredictionUpdater(object):
@@ -213,8 +221,14 @@ class BatchPredictionUpdater(object):
         self.predictor = predictor
         self.plume_recorder = plume_recorder
         self.last_update = 0
+        self.noisy_positions = None
 
     def step(self, noisy_states):
+        if self.noisy_positions is None:
+            self.noisy_positions = GrowingArray(
+                (len(noisy_states), 3), self.plume_recorder.expected_steps)
+
+        self.noisy_positions.append([s.position for s in noisy_states])
         can_do_first_training = self.plume_recorder.positions.shape[1] > 1
         if not self.predictor.trained and can_do_first_training:
             self.update_prediction()
@@ -225,6 +239,6 @@ class BatchPredictionUpdater(object):
 
     def update_prediction(self):
         self.predictor.add_observations(
-            self.plume_recorder.positions[0, self.last_update:, :],
+            self.noisy_positions.data[self.last_update:, 0, :],
             self.plume_recorder.plume_measurements[0, self.last_update:, None])
-        self.last_update = self.plume_recorder.positions.shape[1]
+        self.last_update = len(self.noisy_positions.data)
