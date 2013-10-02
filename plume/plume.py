@@ -78,7 +78,6 @@ def do_simulation_run(trial, output_filename, conf, client):
                 predictor.priors[i] = conf['priors'][i](prediction)
 
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
-        recorder.init(conf['global_conf']['area'])
 
         target_chooser = behaviors.AcquisitionFnTargetChooser(
             conf['acquisition_fn'](behaviors, predictor),
@@ -95,6 +94,7 @@ def do_simulation_run(trial, output_filename, conf, client):
         sim_controller = Controller(client, controller, behavior)
         sim_controller.init_new_sim(conf['seedlist'][trial])
 
+        recorder.init(conf['global_conf']['area'])
         sim_controller.add_recorder(recorder)
 
         if hasattr(behavior, 'targets'):
