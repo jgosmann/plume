@@ -85,8 +85,8 @@ def do_simulation_run(trial, output_filename, conf, client):
             conf['grid_resolution'])
         controller = behaviors.FollowWaypoints(
             target_chooser, conf['target_precision'])
-        controller.observers.append(behaviors.BatchPredictionUpdater(
-            predictor, recorder))
+        updater = conf['updater'](behaviors, predictor, recorder)
+        controller.observers.append(updater)
 
         behavior = controller.velocity_controller
 
