@@ -25,4 +25,4 @@ class TaskPlumeClient(TCPClient):
         return self.rpc('TASK', 'getSamples', locations.flat)
 
     def get_sources(self):
-        return self.rpc('TASK', 'getSources').reshape((3, -1)).T
+        return np.array(self.rpc('TASK', 'getSources')).reshape((3, -1)).T

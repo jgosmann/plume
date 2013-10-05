@@ -4,18 +4,16 @@ import numpy as np
 import numpy.random as rnd
 
 
-def sample_with_metropolis_hastings(client, area, num_samples, proposal_std):
-    d = len(area)
+def sample_with_metropolis_hastings(
+        client, x0, area, num_samples, proposal_std):
     positions = np.empty((num_samples, 3))
     values = np.empty(num_samples)
 
-    x = area[:, 0] + rnd.rand(d) * np.squeeze(np.diff(area, axis=1))
+    x = _draw_from_proposal_dist(x0, area, proposal_std)
     f = np.squeeze(client.get_samples(x))
 
     for i in xrange(num_samples):
-        x_new = np.array(3 * [np.inf])
-        while np.any(x_new < area[:, 0]) or np.any(x_new > area[:, 1]):
-            x_new = x + proposal_std * rnd.randn(d)
+        x_new = _draw_from_proposal_dist(x, area, proposal_std)
         f_new = np.squeeze(client.get_samples(x_new))
         if f <= 0:
             acceptance_ratio = 1
@@ -29,6 +27,14 @@ def sample_with_metropolis_hastings(client, area, num_samples, proposal_std):
         values[i] = f
 
     return positions, values
+
+
+def _draw_from_proposal_dist(x0, area, proposal_std):
+    d = len(area)
+    x = np.array(3 * [np.inf])
+    while np.any(x < area[:, 0]) or np.any(x > area[:, 1]):
+            x = x0 + proposal_std * rnd.randn(d)
+    return x
 
 
 def vegas(
