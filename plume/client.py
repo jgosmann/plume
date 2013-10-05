@@ -23,3 +23,6 @@ class TaskPlumeClient(TCPClient):
 
     def get_samples(self, locations):
         return self.rpc('TASK', 'getSamples', locations.flat)
+
+    def get_sources(self):
+        return self.rpc('TASK', 'getSources').reshape((3, -1)).T
