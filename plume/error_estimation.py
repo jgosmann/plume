@@ -98,3 +98,66 @@ def vegas(
 
     return cum_int_numerator / cum_int_denominator, \
         cum_int_numerator / cum_int_denominator / np.sqrt(cum_int_denominator)
+
+
+class ErrorMeasure(object):
+    def __init__(self, name, return_value_names):
+        self.name = name
+        self.return_value_names = return_value_names
+
+
+class Reward(ErrorMeasure):
+    def __init__(self, client):
+        super(Reward, self).__init__('reward', ['value'])
+        self.client = client
+
+    def __call__(self, gp):
+        self.locations = self.client.get_locations()
+        samples = np.maximum(0, gp.predict(self.locations))
+        self.client.set_samples(samples)
+        return self.client.get_reward(),
+
+
+class ISE(ErrorMeasure):
+    def __init__(self, client, area):
+        super(ISE, self).__init__('ise', ['value', 'sigma'])
+        self.client = client
+        self.area = np.asarray(area)
+
+    def __call__(self, gp):
+        return vegas(
+            self.calc_error, self.area[:, 0], self.area[:, 1], args=(gp,),)
+
+    def calc_error(self, x, y, z, gp):
+        test_loc = np.vstack(
+            (np.atleast_2d(x), np.atleast_2d(y), np.atleast_2d(z))).T
+        pred = np.squeeze(np.maximum(0, gp.predict(test_loc)))
+        targets = self.client.get_samples(test_loc)
+        return np.square(pred - targets)
+
+
+class WISE(ErrorMeasure):
+    def __init__(self, client, area):
+        super(WISE, self).__init__('wise', ['value', 'sigma'])
+        self.client = client
+        self.area = np.asarray(area)
+
+    def __call__(self, gp):
+        return vegas(
+            self.calc_error, self.area[:, 0], self.area[:, 1], args=(gp,),)
+
+    def calc_error(self, x, y, z, gp):
+        test_loc = np.vstack(
+            (np.atleast_2d(x), np.atleast_2d(y), np.atleast_2d(z))).T
+        pred = np.squeeze(np.maximum(0, gp.predict(test_loc)))
+        targets = np.asarray(self.client.get_samples(test_loc))
+        weighting = targets / targets.max()
+        return np.square(pred - targets) * weighting
+
+
+class LogLikelihood(ErrorMeasure):
+    def __init__(self):
+        super(LogLikelihood, self).__init__('log_likelihood', ['value'])
+
+    def __call__(self, gp):
+        return -gp.calc_neg_log_likelihood(),
