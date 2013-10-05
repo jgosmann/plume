@@ -1,7 +1,7 @@
-from config import ConfObj
-
 repeats = 50
 train_size = 1000
+uniform_sample_proportion = 0.16
+proposal_std = 3
 
 seedlist = [
     142612519, 1697227051, 418162616, 2078398864, 173369639,
@@ -17,11 +17,11 @@ seedlist = [
 pyseed = 3011153917
 
 lengthscales = [1, 2.5, 5, 10, 15, 20, 30, 40, 60, 100]
-variances = [1e-6, 1e-5, 1e-4, 0.001, 0.01, 0.1, 0.5, 1]
-noise_var = {noise_var}
+#variances = [1e-6, 1e-5, 1e-4, 0.001, 0.01, 0.1, 0.5, 1]
+variances = [1]
+noise_var = 1e-10
 
 area = [[-140, 140], [-140, 140], [-80, 0]]
-resolution = [50, 50, 14]
 
-kernel = ConfObj({kernel!r})
+kernel = ('prediction', {kernel!r})
 task = {task!r}

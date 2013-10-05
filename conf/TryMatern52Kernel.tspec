@@ -13,14 +13,6 @@ kernel = Matern52Kernel
     task = TaskPlumeSingleSourceGaussianDispersionDefaultControls
     noise_var = 1e-10
 
-[SingleSource_dispersion]
-    task = TaskPlumeSingleSourceGaussianDispersionDefaultControls
-    noise_var = 1e-4
-
 [MultipleSource_dispersion_noiseless]
     task = TaskPlumeMultiSourceGaussianDispersionDefaultControls
     noise_var = 1e-10
-
-[MultipleSource_dispersion]
-    task = TaskPlumeMultiSourceGaussianDispersionDefaultControls
-    noise_var = 1e-4
