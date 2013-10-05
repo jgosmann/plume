@@ -306,13 +306,15 @@ class SparseGP(object):
         self._C = np.zeros((max_bv + 1, max_bv + 1))
         self._s = np.ones(max_bv + 1)
         self._K_inv = np.zeros((max_bv + 1, max_bv + 1))
-        self.trained = False
+        self.updates = 0
 
     x_bv = property(lambda self: self._x_bv[:self.num_bv])
     y_bv = property(lambda self: self._y_bv[:self.num_bv])
     alpha = property(lambda self: self._alpha[:self.num_bv])
     C = property(lambda self: self._C[:self.num_bv, :self.num_bv])
     K_inv = property(lambda self: self._K_inv[:self.num_bv, :self.num_bv])
+
+    trained = property(lambda self: self.updates > 0)
 
     def fit(self, x_train, y_train):
         self.num_bv = min(len(x_train), self.max_bv)
@@ -341,7 +343,7 @@ class SparseGP(object):
         self.alpha[:] = np.squeeze(np.dot(self.K_inv, y_train))
         self.C[:, :] = -self.K_inv
 
-        self.trained = True
+        self.updates += 1
 
         if more_x is not None:
             self.add_observations(more_x, more_y)
@@ -352,6 +354,7 @@ class SparseGP(object):
         else:
             for x, y in zip(x_train, y_train):
                 self.add_single_observation(x, y)
+            self.updates += 1
 
     def add_single_observation(self, x, y):
         x = np.atleast_2d(x)
@@ -492,15 +495,18 @@ class OnlineGP(object):
         self.x_train = None
         self.y_train = None
         self.L_inv = None
-        self.trained = False
+        self.updates = 0
         self.min_rel_jitter = 1e-6
         self.max_rel_jitter = 1e-1
+
+    trained = property(lambda self: self.updates > 0)
 
     def fit(self, x_train, y_train):
         self.x_train = self._create_data_array(np.asarray(x_train))
         self.y_train = self._create_data_array(np.asarray(y_train))
         self.L_inv = Growing2dArray(expected_rows=self.expected_samples)
         self._refit()
+        self.updates += 1
 
     def _refit(self):
         self.L_inv.enlarge_by(len(self.x_train.data) - len(self.L_inv.data))
@@ -508,7 +514,6 @@ class OnlineGP(object):
             self.kernel(self.x_train.data, self.x_train.data) +
             np.eye(len(self.x_train.data)) * self.noise_var))
         self.K_inv = np.dot(self.L_inv.data.T, self.L_inv.data)
-        self.trained = True
 
     def _create_data_array(self, initial_data):
         growing_array = GrowingArray(
@@ -560,6 +565,7 @@ class OnlineGP(object):
 
         self.x_train.extend(x)
         self.y_train.extend(y)
+        self.updates += 1
 
         try:
             C_inv = inv(cholesky(CC_T))
@@ -627,6 +633,7 @@ class LikelihoodGP(object):
         self.gp = OnlineGP(self.kernel, self.noise_var, self.expected_samples)
         self.neg_log_likelihood = -np.inf
 
+    updates = property(lambda self: self.gp.updates)
     trained = property(lambda self: self.gp.trained)
 
     def fit(self, x_train, y_train):
@@ -707,3 +714,11 @@ def predict_on_volume(predictor, area, grid_resolution):
     pred = pred.reshape(x.shape)
     mse = mse.reshape(x.shape)
     return pred, mse, (x, y, z)
+
+
+class ZeroPredictor(object):
+    def predict(self, x):
+        return np.zeros(len(x))
+
+    def calc_neg_log_likelihood(self):
+        return np.nan

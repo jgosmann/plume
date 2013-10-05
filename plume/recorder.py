@@ -5,7 +5,9 @@ from qrsim.tcpclient import ctrl_signal_dimensions, UAVControls
 import numpy as np
 import tables
 
+from error_estimation import ISE, WISE
 from nputil import meshgrid_nd
+from prediction import ZeroPredictor
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,8 @@ class GeneralRecorder(object):
         self.expected_steps = None
 
     def init(self, area):
+        self.area = np.asarray(area)
+
         self._positions = self.fileh.createEArray(
             self.fileh.root, 'positions', tables.FloatAtom(),
             (self.client.numUAVs, 0, 3), expectedrows=self.expected_steps,
@@ -120,14 +124,23 @@ class TaskPlumeRecorder(GeneralRecorder):
             self.fileh.root, 'rewards', tables.FloatAtom(), (0,),
             expectedrows=self.expected_steps,
             title='Total reward in each timestep.')
-        self._rmse = self.fileh.createEArray(
-            self.fileh.root, 'rmse', tables.FloatAtom(), (0,),
+        self._ise = self.fileh.createEArray(
+            self.fileh.root, 'ise', tables.FloatAtom(), (0,),
             expectedrows=self.expected_steps,
-            title='Root mean square error in each time step.')
-        self._wrmse = self.fileh.createEArray(
-            self.fileh.root, 'wrmse', tables.FloatAtom(), (0,),
+            title='Integrated square error in each time step.')
+        self._ise_sigma = self.fileh.createEArray(
+            self.fileh.root, 'ise_sigma', tables.FloatAtom(), (0,),
             expectedrows=self.expected_steps,
-            title='Weighted root mean square error in each time step.')
+            title='Standard deviation of ISE approximation in each time step.')
+        self._wise = self.fileh.createEArray(
+            self.fileh.root, 'wise', tables.FloatAtom(), (0,),
+            expectedrows=self.expected_steps,
+            title='Weighted integrated square error in each time step.')
+        self._wise_sigma = self.fileh.createEArray(
+            self.fileh.root, 'wise_sigma', tables.FloatAtom(), (0,),
+            expectedrows=self.expected_steps,
+            title='Standard deviation of WISE approximation in each time '
+            'step.')
         self._kernel_params = self.fileh.createEArray(
             self.fileh.root, 'kernel_params', tables.FloatAtom(),
             (0, self.predictor.kernel.params.size),
@@ -138,14 +151,25 @@ class TaskPlumeRecorder(GeneralRecorder):
             (0,), expectedrows=self.expected_steps,
             title='Parameters of the kernel function in each time step.')
         self._max_gt_value = self.gt_samples.max()
+        self.updates = -1
 
     def record(self):
         GeneralRecorder.record(self)
         self._record_plume_measurement()
-        self._record_reward()
-        self._record_xrmse()
         self._record_kernel_params()
-        self._record_log_likelihood()
+        if self.updates < self.predictor.updates:
+            self._record_reward()
+            self._record_xise()
+            self._record_log_likelihood()
+            self.updates = self.predictor.updates
+        else:
+            self._rerecord_last_error_values()
+
+    def _rerecord_last_error_values(self):
+        self._rewards.append([self._rewards[-1]])
+        self._ise.append([self._ise[-1]])
+        self._wise.append([self._wise[-1]])
+        self._log_likelihood.append([self._log_likelihood[-1]])
 
     def _record_plume_measurement(self):
         measurement = np.atleast_2d(self.client.get_plume_sensor_outputs()).T
@@ -162,16 +186,19 @@ class TaskPlumeRecorder(GeneralRecorder):
             reward, samples.min(), samples.max()))
         self._rewards.append([reward])
 
-    def _record_xrmse(self):
+    def _record_xise(self):
         if self.predictor.trained:
-            samples = np.squeeze(
-                np.maximum(0, self.predictor.predict(self.gt_locations)))
+            pred = self.predictor
         else:
-            samples = np.zeros(len(self.gt_samples))
-        se = (samples - self.gt_samples) ** 2
-        wse = se * self.gt_samples / self._max_gt_value
-        self._rmse.append([np.sqrt(np.mean(se))])
-        self._wrmse.append([np.sqrt(np.mean(wse))])
+            pred = ZeroPredictor()
+
+        value, sigma = ISE(self.client, self.area)(pred)
+        self._ise.append([value])
+        self._ise_sigma.append([sigma])
+
+        value, sigma = WISE(self.client, self.area)(pred)
+        self._wise.append([value])
+        self._wise_sigma.append([sigma])
 
     def _record_kernel_params(self):
         self._kernel_params.append([self.predictor.kernel.params])

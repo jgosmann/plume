@@ -13,16 +13,9 @@ from plume import QRSimApplication
 from error_estimation import sample_with_metropolis_hastings, Reward, ISE, \
     WISE, LogLikelihood
 import prediction
+from prediction import ZeroPredictor
 
 logger = logging.getLogger(__name__)
-
-
-class ZeroPredictor(object):
-    def predict(self, x):
-        return np.zeros(len(x))
-
-    def calc_neg_log_likelihood(self):
-        return np.nan
 
 
 class KernelTester(object):
