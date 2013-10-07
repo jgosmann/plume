@@ -56,8 +56,7 @@ class KernelTester(object):
 
             for name in measure.return_value_names:
                 fileh.createArray(measure_group, name, np.zeros(
-                    (len(conf['lengthscales']), len(conf['variances']),
-                     conf['repeats'])))
+                    conf['repeats']))
 
     def run_and_store_results(self):
         for i in xrange(self.conf['repeats']):
