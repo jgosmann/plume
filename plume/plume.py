@@ -78,10 +78,13 @@ def do_simulation_run(trial, output_filename, conf, client):
 
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
 
-        target_chooser = behaviors.AcquisitionFnTargetChooser(
-            instantiate(*conf['acquisition_fn'], predictor=predictor),
-            conf['global_conf']['area'], conf['margin'],
-            conf['grid_resolution'])
+        target_chooser = behaviors.ChainTargetChoosers([
+            behaviors.SurroundArea(
+                conf['global_conf']['area'], conf['margin']),
+            behaviors.AcquisitionFnTargetChooser(
+                instantiate(*conf['acquisition_fn'], predictor=predictor),
+                conf['global_conf']['area'], conf['margin'],
+                conf['grid_resolution'])])
         controller = behaviors.FollowWaypoints(
             target_chooser, conf['target_precision'])
         updater = instantiate(

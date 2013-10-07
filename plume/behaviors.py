@@ -121,6 +121,73 @@ class AcquisitionFnTargetChooser(TargetChooser):
         return self.area + np.array([self.margin, -self.margin])
 
 
+class SurroundArea(TargetChooser):
+    def __init__(self, area, margin):
+        self.area = area
+        self.margin = margin
+        effective_area = self.get_effective_area()
+        height = np.mean(effective_area[2, :])
+
+        self.targets = np.array([
+            [effective_area[0, 0], effective_area[1, 0], height],
+            [effective_area[0, 1], effective_area[1, 0], height],
+            [effective_area[0, 1], effective_area[1, 1], height],
+            [effective_area[0, 0], effective_area[1, 1], height],
+            [effective_area[0, 0], effective_area[1, 0], height]])
+        self.current_target = -1
+
+    def new_targets(self, noisy_states):
+        self.current_target += 1
+        if self.current_target == 0:
+            self._init_targets(noisy_states)
+
+        if self.current_target >= len(self.targets):
+            return None
+        return [self.targets[self.current_target]]
+
+    def _init_targets(self, noisy_states):
+        ea = self.get_effective_area()
+        height = np.mean(ea[2, :])
+        distances = np.abs(ea - np.asarray(noisy_states[0].position)[:, None])
+        nearest = np.unravel_index(np.argmin(distances[:2, :]), (2, 2))
+        start = np.array(noisy_states[0].position[:2] + (height,))
+        start[nearest[0]] = ea[nearest[0], nearest[1]]
+        corners = np.array([
+            [ea[0, 0], ea[1, 0], height],
+            [ea[0, 1], ea[1, 0], height],
+            [ea[0, 1], ea[1, 1], height],
+            [ea[0, 0], ea[1, 1], height]])
+        nearest_corner = np.argmin(np.sum(np.square(corners - start), axis=1))
+        self.targets = np.vstack(
+            ([start], np.roll(corners, -nearest_corner, 0), [start]))
+
+    def get_effective_area(self):
+        return self.area + np.array([self.margin, -self.margin])
+
+
+class ChainTargetChoosers(TargetChooser):
+    def __init__(self, choosers):
+        self.choosers = choosers
+        self.current_chooser = 0
+
+    def new_targets(self, noisy_states):
+        if self.current_chooser >= len(self.choosers):
+            return None
+
+        targets = self.choosers[self.current_chooser].new_targets(noisy_states)
+        while targets is None:
+            self.current_chooser += 1
+            if self.current_chooser >= len(self.choosers):
+                return None
+            targets = self.choosers[self.current_chooser].new_targets(
+                noisy_states)
+
+        return targets
+
+    def get_effective_area(self):
+        return self.choosers[self.current_chooser].get_effective_area()
+
+
 class DUCBBased(DifferentiableFn):
     def __init__(self, predictor):
         self.predictor = predictor
