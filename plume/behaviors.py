@@ -41,7 +41,7 @@ class VelocityTowardsWaypointController(object):
         return controls
 
     def _get_velocities(self, current_pos, to):
-        v = 0.05 * np.array([self.maxv, self.maxv, self.max_climb]) * \
+        v = 0.025 * np.array([self.maxv, self.maxv, self.max_climb]) * \
             (to - current_pos)
         if norm(v[:2]) > self.maxv:
             v[:2] *= self.maxv / norm(v[:2])
