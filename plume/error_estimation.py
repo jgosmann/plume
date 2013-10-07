@@ -78,10 +78,10 @@ def vegas(
         importance = unnormalized_importance / np.sum(
             unnormalized_importance, axis=1)[:, None]
         splits = np.ones_like(importance, dtype=int)
-        splits[np.nonzero(importance)] = 1 + int(np.round(
+        splits[np.nonzero(importance)] = 1 + np.round(
             num_subincrements * (
                 (importance[np.nonzero(importance)] - 1) /
-                np.log(importance[np.nonzero(importance)])) ** 2.0))
+                np.log(importance[np.nonzero(importance)])) ** 2.0)
 
         new_incs = np.zeros_like(incs)
         incs /= splits
