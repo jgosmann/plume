@@ -77,8 +77,11 @@ def vegas(
         unnormalized_importance = importance_density * incs
         importance = unnormalized_importance / np.sum(
             unnormalized_importance, axis=1)[:, None]
-        splits = 1 + np.round(
-            num_subincrements * ((importance - 1) / np.log(importance)) ** 2.0)
+        splits = np.ones_like(importance, dtype=int)
+        splits[np.nonzero(importance)] = 1 + int(np.round(
+            num_subincrements * (
+                (importance[np.nonzero(importance)] - 1) /
+                np.log(importance[np.nonzero(importance)])) ** 2.0))
 
         new_incs = np.zeros_like(incs)
         incs /= splits
