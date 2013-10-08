@@ -77,11 +77,11 @@ def vegas(
         unnormalized_importance = importance_density * incs
         importance = unnormalized_importance / np.sum(
             unnormalized_importance, axis=1)[:, None]
+        valid = np.logical_and(0 < importance, importance < 1)
         splits = np.ones_like(importance, dtype=int)
-        splits[np.nonzero(importance)] = 1 + np.round(
+        splits[valid] = 1 + np.round(
             num_subincrements * (
-                (importance[np.nonzero(importance)] - 1) /
-                np.log(importance[np.nonzero(importance)])) ** 2.0)
+                (importance[valid] - 1) / np.log(importance[valid])) ** 2.0)
 
         new_incs = np.zeros_like(incs)
         incs /= splits
@@ -154,8 +154,7 @@ class WISE(ErrorMeasure):
             (np.atleast_2d(x), np.atleast_2d(y), np.atleast_2d(z))).T
         pred = np.squeeze(np.maximum(0, gp.predict(test_loc)))
         targets = np.asarray(self.client.get_samples(test_loc))
-        weighting = targets / targets.max()
-        return np.square(pred - targets) * weighting
+        return np.square(pred - targets) * targets
 
 
 class LogLikelihood(ErrorMeasure):
