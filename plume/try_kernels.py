@@ -126,16 +126,22 @@ class KernelTester(object):
         num_uniform_samples = self.conf['uniform_sample_proportion'] * \
             self.conf['train_size']
         num_samples_per_source = int(
-            (self.conf['train_size'] - num_uniform_samples) / len(sources))
+            0.8 * (self.conf['train_size'] - num_uniform_samples) /
+            len(sources))
+        num_samples_around_max = int(
+            0.2 * (self.conf['train_size'] - num_uniform_samples) /
+            len(sources))
 
         samples = [sample_with_metropolis_hastings(
             self.client, source, area, num_samples_per_source,
             self.conf['proposal_std'])[0]
             for source in sources]
+        samples2 = [10 * rnd.randn(num_samples_around_max, 3) + source
+                    for source in sources]
         uniform_samples = area[:, 0] + rnd.rand(
             num_uniform_samples, 3) * np.squeeze(np.diff(area, axis=1))
 
-        return np.concatenate([uniform_samples] + samples)
+        return np.concatenate([uniform_samples] + samples + samples2)
 
 
 class TryKernelsApplication(QRSimApplication):
