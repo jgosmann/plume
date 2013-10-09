@@ -26,3 +26,7 @@ class TaskPlumeClient(TCPClient):
 
     def get_sources(self):
         return np.array(self.rpc('TASK', 'getSources')).reshape((3, -1)).T
+
+    def get_wind_axis_transformation(self):
+        return np.array(self.rpc('TASK', 'getWindAxisTransformation')).reshape(
+            (2, 2))
