@@ -237,14 +237,36 @@ class PDUCB(DUCBBased):
 
     def _eval_fn(self, common_terms, x, noisy_states):
         pred, unused, mse, unused, sq_dist = common_terms
+        kappa = np.log(self.predictor.y_bv.max() + self.epsilon) - \
+            np.log(self.epsilon)
+        if self.predictor.deleted_bv.rows > 0:
+            density = np.sum(self.predictor.kernel(
+                np.atleast_2d(x), self.predictor.deleted_bv.data), axis=1)
+            density /= self.predictor.deleted_bv.rows
+        else:
+            density = np.ones_like(mse)
         ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
-            self.kappa * np.sqrt(mse)[:, None] + self.gamma * sq_dist
+            kappa * np.sqrt(mse)[:, None] - \
+            kappa * np.sqrt(density)[:, None] + \
+            self.gamma * sq_dist
         return np.squeeze(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
         pred, pred_derivative, mse, mse_derivative, sq_dist = common_terms
+        kappa = np.log(self.predictor.y_bv.max() + self.epsilon) - \
+            np.log(self.epsilon)
+        if self.predictor.deleted_bv.rows > 0:
+            density, dender = self.predictor.kernel(
+                np.atleast_2d(x), self.predictor.deleted_bv.data,
+                eval_derivative=True)
+            density = np.sum(density, axis=1) / self.predictor.deleted_bv.rows
+            dender = np.sum(dender, axis=1) / self.predictor.deleted_bv.rows
+        else:
+            density = np.zeros_like(mse)
+            dender = np.zeros_like(mse_derivative)
         ucb_derivative = pred_derivative / (pred + self.epsilon) + \
-            self.kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
+            kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
+            kappa * dender * 0.5 / np.sqrt(density)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
         return np.squeeze(ucb_derivative)
 
