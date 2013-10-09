@@ -352,6 +352,8 @@ class SparseGP(object):
         self.num_bv = min(len(x_train), self.max_bv)
         self._x_bv = np.empty((self.max_bv + 1, x_train.shape[1]))
         self._y_bv = np.empty((self.max_bv + 1, y_train.shape[1]))
+        self.deleted_bv = GrowingArray(
+            (x_train.shape[1],), expected_rows=2 * self.max_bv)
         self._s.fill(1.0)
         self._C.fill(0.0)
         self._alpha.fill(0.0)
@@ -437,6 +439,7 @@ class SparseGP(object):
     def _delete_bv(self):
         score = np.abs(self.alpha) / np.diag(self.K_inv)
         min_bv = np.argmin(score)
+        self.deleted_bv.append(self.x_bv[min_bv])
 
         self._exclude_from_vec(self.x_bv, min_bv)
         self._exclude_from_vec(self.y_bv, min_bv)
