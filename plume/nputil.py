@@ -2,7 +2,7 @@ import numpy as np
 
 
 class GrowingArray(object):
-    def __init__(self, shape, dtype='float', expected_rows=100):
+    def __init__(self, shape=(1,), dtype='float', expected_rows=100):
         self.rows = 0
         self._data = np.empty((expected_rows,) + shape, dtype=dtype)
 
