@@ -76,6 +76,13 @@ class KernelTester(object):
             train_y += np.sqrt(self.conf['noise_var']) * rnd.randn(
                 len(train_y))
 
+        for measure in self.measures:
+            mz = measure(ZeroPredictor(), test_x, test_y)
+            m_group = self.fileh.getNode('/', measure.name)
+            zero_pred = self.fileh.getNode(m_group, 'zero_pred')
+            for k, name in enumerate(measure.return_value_names):
+                self.fileh.getNode(zero_pred, name)[trial] = mz[k]
+
         for i, j in np.ndindex(
                 len(self.conf['lengthscales']), len(self.conf['variances'])):
             lengthscale = self.conf['lengthscales'][i]
@@ -91,13 +98,10 @@ class KernelTester(object):
 
             for measure in self.measures:
                 m = measure(gp, test_x, test_y)
-                mz = measure(ZeroPredictor(), test_x, test_y)
                 m_group = self.fileh.getNode('/', measure.name)
                 gp_pred = self.fileh.getNode(m_group, 'gp_pred')
-                zero_pred = self.fileh.getNode(m_group, 'zero_pred')
                 for k, name in enumerate(measure.return_value_names):
                     self.fileh.getNode(gp_pred, name)[i, j, trial] = m[k]
-                    self.fileh.getNode(zero_pred, name)[trial] = mz[k]
 
         logger.info('Trial {}, likelihood optimization'.format(trial))
         max_likelihood_idx = np.unravel_index(np.argmax(
