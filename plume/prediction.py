@@ -10,6 +10,38 @@ from nputil import GrowingArray, Growing2dArray, meshgrid_nd
 logger = logging.getLogger(__name__)
 
 
+class TargetDependence(object):
+    def __init__(self, decorated, coefficient=10.0):
+        self.decorated = decorated
+        self.coefficient = coefficient
+
+    def get_params(self):
+        return np.concatenate(([self.coefficient], self.decorated.params))
+
+    def set_params(self, values):
+        self.coefficient = values[0]
+        self.decorated.params = values[1:]
+
+    params = property(get_params, set_params)
+
+    def __call__(self, x1, x2, y1, y2, eval_derivative=False):
+        b = 1.0 + self.coefficient * np.atleast_2d(y1).T * np.atleast_2d(y2)
+        if eval_derivative:
+            k, deriv = self.decorated(x1, y2, eval_derivative=eval_derivative)
+            return k ** b, deriv * b * k ** (b - 1)
+        else:
+            return self.decorated(x1, x2) ** b
+
+    def diag(self, x1, x2, y1, y2):
+        b = 1.0 + self.coefficient * np.atleast_2d(y1) * np.atleast_2d(y2)
+        return self.decorated.diag(x1, x2) ** b
+
+    def param_derivatives(self, x1, x2, y1, y2):
+        b = 1.0 + self.coefficient * np.atleast_2d(y1).T * np.atleast_2d(y2)
+        return self.decorated.param_derivatives(
+            x1, x2) * b * self.decorated(x1, x2) ** (b - 1)
+
+
 class RBFKernel(object):
     def __init__(self, lengthscale, variance=1.0):
         self.lengthscale = lengthscale
