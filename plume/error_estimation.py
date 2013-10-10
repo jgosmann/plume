@@ -9,8 +9,10 @@ def sample_with_metropolis_hastings(
     positions = np.empty((num_samples, 3))
     values = np.empty(num_samples)
 
-    x = _draw_from_proposal_dist(x0, area, proposal_std)
-    f = np.squeeze(client.get_samples(x))
+    f = 0
+    while f <= 0:
+        x = _draw_from_proposal_dist(x0, area, proposal_std)
+        f = np.squeeze(client.get_samples(x))
 
     for i in xrange(num_samples):
         x_new = _draw_from_proposal_dist(x, area, proposal_std)
