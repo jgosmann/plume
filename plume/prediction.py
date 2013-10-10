@@ -23,7 +23,7 @@ class RBFKernel(object):
 
     params = property(get_params, set_params)
 
-    def __call__(self, x1, x2, eval_derivative=False):
+    def __call__(self, x1, x2, y1=None, y2=None, eval_derivative=False):
         """Returns the Gram matrix for the points given in x1 and x1.
 
         If eval_derivative=True the derivative in x1 evaluated at the points in
@@ -38,7 +38,7 @@ class RBFKernel(object):
         else:
             return res
 
-    def diag(self, x1, x2):
+    def diag(self, x1, x2, y1=None, y2=None):
         if x1 is x2:
             return self.variance * np.ones(len(x1))
 
@@ -46,7 +46,7 @@ class RBFKernel(object):
             np.sum(np.square(x1), 1) + np.sum(np.square(x2), 1))
         return self.variance * np.exp(-0.5 * d / self.lengthscale ** 2)
 
-    def param_derivatives(self, x1, x2):
+    def param_derivatives(self, x1, x2, y1=None, y2=None):
         d = self._calc_distance(x1, x2)
         variance_deriv = np.exp(-0.5 * d / self.lengthscale ** 2)
         lengthscale_deriv = 2 * self.variance * d / (self.lengthscale ** 3) * \
@@ -72,7 +72,7 @@ class ExponentialKernel(object):
 
     params = property(get_params, set_params)
 
-    def __call__(self, x1, x2, eval_derivative=False):
+    def __call__(self, x1, x2, y1=None, y2=None, eval_derivative=False):
         d = self._calc_distance(x1, x2)
         res = self.variance * np.exp(-d / self.lengthscale)
         if eval_derivative:
@@ -82,14 +82,14 @@ class ExponentialKernel(object):
         else:
             return res
 
-    def diag(self, x1, x2):
+    def diag(self, x1, x2, y1=None, y2=None):
         if x1 is x2:
             return self.variance * np.ones(len(x1))
 
         d = np.sqrt(np.sum((x1 - x2) ** 2, axis=1))
         return self.variance * np.exp(-d / self.lengthscale)
 
-    def param_derivatives(self, x1, x2):
+    def param_derivatives(self, x1, x2, y1=None, y2=None):
         d = self._calc_distance(x1, x2)
         variance_deriv = np.exp(-d / self.lengthscale)
         lengthscale_deriv = self.variance * d / (self.lengthscale ** 2) * \
@@ -115,7 +115,7 @@ class Matern32Kernel(object):
 
     params = property(get_params, set_params)
 
-    def __call__(self, x1, x2, eval_derivative=False):
+    def __call__(self, x1, x2, y1=None, y2=None, eval_derivative=False):
         scaled_d = np.sqrt(3) * self._calc_distance(x1, x2) / self.lengthscale
         exp_term = np.exp(-scaled_d)
         res = self.variance * (1 + scaled_d) * exp_term
@@ -127,7 +127,7 @@ class Matern32Kernel(object):
         else:
             return res
 
-    def diag(self, x1, x2):
+    def diag(self, x1, x2, y1=None, y2=None):
         if x1 is x2:
             return self.variance * np.ones(len(x1))
 
@@ -135,7 +135,7 @@ class Matern32Kernel(object):
         scaled_d = np.sqrt(3) * d / self.lengthscale
         return self.variance * (1 + scaled_d) * np.exp(-scaled_d)
 
-    def param_derivatives(self, x1, x2):
+    def param_derivatives(self, x1, x2, y1=None, y2=None):
         scaled_d = np.sqrt(3) * self._calc_distance(x1, x2) / self.lengthscale
         exp_term = np.exp(-scaled_d)
         variance_deriv = (1 + scaled_d) * exp_term
@@ -162,7 +162,7 @@ class Matern52Kernel(object):
 
     params = property(get_params, set_params)
 
-    def __call__(self, x1, x2, eval_derivative=False):
+    def __call__(self, x1, x2, y1=None, y2=None, eval_derivative=False):
         d = self._calc_distance(x1, x2)
         scaled_d = np.sqrt(5) * d / self.lengthscale
         exp_term = np.exp(-scaled_d)
@@ -176,7 +176,7 @@ class Matern52Kernel(object):
         else:
             return res
 
-    def diag(self, x1, x2):
+    def diag(self, x1, x2, y1=None, y2=None):
         if x1 is x2:
             return self.variance * np.ones(len(x1))
 
@@ -185,7 +185,7 @@ class Matern52Kernel(object):
         return self.variance * (1 + scaled_d + scaled_d ** 2 / 3.0) * \
             np.exp(-scaled_d)
 
-    def param_derivatives(self, x1, x2):
+    def param_derivatives(self, x1, x2, y1=None, y2=None):
         scaled_d = np.sqrt(3) * self._calc_distance(x1, x2) / self.lengthscale
         exp_term = np.exp(-scaled_d)
         variance_deriv = (1 + scaled_d + scaled_d ** 2 / 3.0) * exp_term
@@ -221,7 +221,7 @@ class AnisotropicExponentialKernel(object):
 
     params = property(get_params, set_params)
 
-    def __call__(self, x1, x2, eval_derivative=False):
+    def __call__(self, x1, x2, y1=None, y2=None, eval_derivative=False):
         pd = self._calc_projected_distance(x1, x2)
         res = self.variance * np.exp(-pd)
         if eval_derivative:
@@ -234,7 +234,7 @@ class AnisotropicExponentialKernel(object):
         else:
             return res
 
-    def diag(self, x1, x2):
+    def diag(self, x1, x2, y1=None, y2=None):
         if x1 is x2:
             return self.variance * np.ones(len(x1))
 
@@ -242,7 +242,7 @@ class AnisotropicExponentialKernel(object):
             'ij,kj->ki', self.projection, x1 - x2) ** 2, axis=1))
         return self.variance * np.exp(-pd)
 
-    def param_derivatives(self, x1, x2):
+    def param_derivatives(self, x1, x2, y1=None, y2=None):
         pd = self._calc_projected_distance(x1, x2)
         variance_deriv = np.exp(-pd)
 
@@ -511,7 +511,9 @@ class OnlineGP(object):
     def _refit(self):
         self.L_inv.enlarge_by(len(self.x_train.data) - len(self.L_inv.data))
         self.L_inv.data[:] = inv(self._jitter_cholesky(
-            self.kernel(self.x_train.data, self.x_train.data) +
+            self.kernel(
+                self.x_train.data, self.x_train.data,
+                self.y_train.data, self.y_train.data) +
             np.eye(len(self.x_train.data)) * self.noise_var))
         self.K_inv = np.dot(self.L_inv.data.T, self.L_inv.data)
 
@@ -524,9 +526,11 @@ class OnlineGP(object):
     def predict(self, x, eval_MSE=False, eval_derivatives=False):
         if eval_derivatives:
             K_new_vs_old, K_new_vs_old_derivative = self.kernel(
-                x, self.x_train.data, eval_derivative=True)
+                x, self.x_train.data, np.zeros(len(x)), self.y_train.data,
+                eval_derivative=True)
         else:
-            K_new_vs_old = self.kernel(x, self.x_train.data)
+            K_new_vs_old = self.kernel(
+                x, self.x_train.data, np.zeros(len(x)), self.y_train.data)
 
         svs = np.dot(self.K_inv, self.y_train.data)
         pred = np.dot(K_new_vs_old, svs)
@@ -534,7 +538,8 @@ class OnlineGP(object):
             mse_svs = np.dot(self.K_inv, K_new_vs_old.T)
             mse = np.maximum(
                 self.noise_var,
-                self.noise_var + self.kernel.diag(x, x) - np.einsum(
+                self.noise_var + self.kernel.diag(
+                    x, x, np.zeros(len(x)), np.zeros(len(x))) - np.einsum(
                     'ij,ji->i', K_new_vs_old, mse_svs))
 
         if eval_derivatives:
@@ -556,9 +561,10 @@ class OnlineGP(object):
             self.fit(x, y)
             return
 
-        K_obs = self.kernel(x, self.x_train.data)
+        K_obs = self.kernel(
+            x, self.x_train.data, y, self.y_train.data)
         B = np.dot(K_obs, self.L_inv.data.T)
-        CC_T = self.kernel(x, x) + np.eye(len(x)) * self.noise_var - \
+        CC_T = self.kernel(x, x, y, y) + np.eye(len(x)) * self.noise_var - \
             np.dot(B, B.T)
         diag_indices = np.diag_indices_from(CC_T)
         CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
