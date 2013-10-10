@@ -1,7 +1,9 @@
 repeats = 50
 train_size = 1000
-uniform_sample_proportion = 0.16
-proposal_std = 3
+num_uniform_samples = 1000
+num_source_samples = 9000
+mh_stride = 5
+proposal_std = 6
 
 seedlist = [
     142612519, 1697227051, 418162616, 2078398864, 173369639,
