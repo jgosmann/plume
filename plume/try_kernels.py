@@ -108,11 +108,12 @@ class KernelTester(object):
             self.fileh.root.log_likelihood.gp_pred.value.read()[:, :, trial]),
             (len(self.conf['lengthscales']), len(self.conf['variances'])))
         lengthscale = self.conf['lengthscales'][max_likelihood_idx[0]]
-        variance = self.conf['variances'][max_likelihood_idx[1]]
+        variance = 1.0
         kernel = instantiate(
             *self.conf['kernel'], args=(lengthscale, variance))
         gp = prediction.LikelihoodGP(
             kernel, self.conf['noise_var'], self.conf['train_size'])
+        gp.bounds = [(0, None), (1, 1)]
         gp.fit(train_x, train_y)
         self.fileh.root.likelihood_optimization.lengthscales[trial] = \
             kernel.lengthscale
@@ -122,7 +123,7 @@ class KernelTester(object):
             group = self.fileh.getNode(
                 '/likelihood_optimization', measure.name)
 
-            m = measure(gp)
+            m = measure(gp, test_x, test_y)
             for i, name in enumerate(measure.return_value_names):
                 self.fileh.getNode(group, name)[trial] = m[i]
 
