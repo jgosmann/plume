@@ -10,8 +10,8 @@ import tables
 
 from config import instantiate
 from plume import QRSimApplication
-from error_estimation import sample_with_metropolis_hastings, Reward, ISE, \
-    WISE, LogLikelihood
+from error_estimation import sample_with_metropolis_hastings, Reward, RMSE, \
+    WRMSE, LogLikelihood
 import prediction
 from prediction import ZeroPredictor
 
@@ -24,9 +24,7 @@ class KernelTester(object):
         self.conf = conf
         self.client = client
 
-        self.measures = [
-            ISE(client, self.conf['area']), WISE(client, self.conf['area']),
-            LogLikelihood(), Reward(client)]
+        self.measures = [RMSE(), WRMSE(), LogLikelihood(), Reward(client)]
 
         tbl = fileh.createVLArray(
             '/', 'conf', tables.ObjectAtom(),
@@ -66,8 +64,13 @@ class KernelTester(object):
         self.client.reset_seed(self.conf['seedlist'][trial])
         self.client.reset()
 
-        train_x = self._gen_probe_locations()
-        train_y = np.asarray(self.client.get_samples(train_x))
+        x = self._gen_probe_locations()
+        rnd.shuffle(x)
+        y = np.asarray(self.client.get_samples(x))
+        train_x = x[:self.conf['train_size']]
+        train_y = y[:self.conf['train_size']]
+        test_x = x[self.conf['train_size']:]
+        test_y = y[self.conf['train_size']:]
 
         if self.conf['noise_var'] > 1e-6:
             train_y += np.sqrt(self.conf['noise_var']) * rnd.randn(
@@ -87,8 +90,8 @@ class KernelTester(object):
             gp.fit(train_x, train_y)
 
             for measure in self.measures:
-                m = measure(gp)
-                mz = measure(ZeroPredictor())
+                m = measure(gp, test_x, test_y)
+                mz = measure(ZeroPredictor(), test_x, test_y)
                 m_group = self.fileh.getNode('/', measure.name)
                 gp_pred = self.fileh.getNode(m_group, 'gp_pred')
                 zero_pred = self.fileh.getNode(m_group, 'zero_pred')
@@ -123,25 +126,26 @@ class KernelTester(object):
         area = np.asarray(self.conf['area'])
         sources = self.client.get_sources()
 
-        num_uniform_samples = self.conf['uniform_sample_proportion'] * \
-            self.conf['train_size']
-        num_samples_per_source = int(
-            0.8 * (self.conf['train_size'] - num_uniform_samples) /
-            len(sources))
-        num_samples_around_max = int(
-            0.2 * (self.conf['train_size'] - num_uniform_samples) /
-            len(sources))
+        num_uniform_samples = self.conf['num_uniform_samples']
+        num_samples_per_source = self.conf['num_source_samples'] // len(
+            sources)
+        mh_stride = self.conf['mh_stride']
 
-        samples = [sample_with_metropolis_hastings(
-            self.client, source, area, num_samples_per_source,
-            self.conf['proposal_std'])[0]
-            for source in sources]
-        samples2 = [10 * rnd.randn(num_samples_around_max, 3) + source
-                    for source in sources]
         uniform_samples = area[:, 0] + rnd.rand(
             num_uniform_samples, 3) * np.squeeze(np.diff(area, axis=1))
 
-        return np.concatenate([uniform_samples] + samples + samples2)
+        samples = [sample_with_metropolis_hastings(
+            self.client, source, area, num_samples_per_source,
+            self.conf['proposal_std'])[0][::mh_stride]
+            for source in sources]
+
+        samples_gauss = []
+        for i in xrange(mh_stride):
+            samples_gauss.extend(
+                self.conf['proposal_std'] * rnd.randn(len(s), 3) + s
+                for s in samples)
+
+        return np.concatenate([uniform_samples] + samples + samples_gauss)
 
 
 class TryKernelsApplication(QRSimApplication):

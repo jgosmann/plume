@@ -2,6 +2,7 @@ from __future__ import division
 
 import numpy as np
 import numpy.random as rnd
+from scipy.stats import gaussian_kde
 
 
 def sample_with_metropolis_hastings(
@@ -116,52 +117,39 @@ class Reward(ErrorMeasure):
         super(Reward, self).__init__('reward', ['value'])
         self.client = client
 
-    def __call__(self, gp):
+    def __call__(self, gp, test_x, test_y):
         self.locations = self.client.get_locations()
         samples = np.maximum(0, gp.predict(self.locations))
         self.client.set_samples(samples)
         return self.client.get_reward(),
 
 
-class ISE(ErrorMeasure):
-    def __init__(self, client, area):
-        super(ISE, self).__init__('ise', ['value', 'sigma'])
-        self.client = client
-        self.area = np.asarray(area)
+class RMSE(ErrorMeasure):
+    def __init__(self):
+        super(RMSE, self).__init__('rmse', ['value'])
 
-    def __call__(self, gp):
-        return vegas(
-            self.calc_error, self.area[:, 0], self.area[:, 1], args=(gp,),)
-
-    def calc_error(self, x, y, z, gp):
-        test_loc = np.vstack(
-            (np.atleast_2d(x), np.atleast_2d(y), np.atleast_2d(z))).T
-        pred = np.squeeze(np.maximum(0, gp.predict(test_loc)))
-        targets = self.client.get_samples(test_loc)
-        return np.square(pred - targets)
+    def __call__(self, gp, test_x, test_y):
+        density = gaussian_kde(test_x.T)
+        pred = np.maximum(0, gp.predict(test_x))
+        return np.sqrt(
+            np.mean(np.square((pred - test_y) / density(test_x.T)), axis=0)),
 
 
-class WISE(ErrorMeasure):
-    def __init__(self, client, area):
-        super(WISE, self).__init__('wise', ['value', 'sigma'])
-        self.client = client
-        self.area = np.asarray(area)
+class WRMSE(ErrorMeasure):
+    def __init__(self):
+        super(WRMSE, self).__init__('wrmse', ['value'])
 
-    def __call__(self, gp):
-        return vegas(
-            self.calc_error, self.area[:, 0], self.area[:, 1], args=(gp,),)
-
-    def calc_error(self, x, y, z, gp):
-        test_loc = np.vstack(
-            (np.atleast_2d(x), np.atleast_2d(y), np.atleast_2d(z))).T
-        pred = np.squeeze(np.maximum(0, gp.predict(test_loc)))
-        targets = np.asarray(self.client.get_samples(test_loc))
-        return np.square(pred - targets) * targets
+    def __call__(self, gp, test_x, test_y):
+        density = gaussian_kde(test_x.T)
+        weighting = test_y / test_y.max()
+        pred = np.maximum(0, gp.predict(test_x))
+        return np.sqrt(np.mean(np.square(
+            (pred - test_y) * weighting / density(test_x.T)), axis=0)),
 
 
 class LogLikelihood(ErrorMeasure):
     def __init__(self):
         super(LogLikelihood, self).__init__('log_likelihood', ['value'])
 
-    def __call__(self, gp):
+    def __call__(self, gp, test_x, test_y):
         return -gp.calc_neg_log_likelihood(),

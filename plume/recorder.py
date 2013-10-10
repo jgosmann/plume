@@ -5,7 +5,7 @@ from qrsim.tcpclient import ctrl_signal_dimensions, UAVControls
 import numpy as np
 import tables
 
-from error_estimation import ISE, WISE
+from error_estimation import RMSE, WRMSE
 from nputil import meshgrid_nd
 from prediction import ZeroPredictor
 
