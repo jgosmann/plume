@@ -229,7 +229,7 @@ class PlumeVisualizer(HasTraits):
         trajectories = self.data.root.positions.read()[:, :self.end, :]
         self.plot_uav_trajectories(trajectories, figure=scene.mayavi_scene)
 
-        area = self.conf['global_conf']['area']
+        area = self.conf['area']
         scene.mayavi_scene.children[0].add_child(
             Outline(manual_bounds=True, bounds=area.flatten()))
 
@@ -244,7 +244,7 @@ class PlumeVisualizer(HasTraits):
             positions, mse, self.prediction_cutoff,
             figure=self.mse.mayavi_scene)
 
-        area = self.conf['global_conf']['area']
+        area = self.conf['area']
         ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
             area, (20, 20, 20))]
         x, y, z = meshgrid_nd(*ogrid)
@@ -308,7 +308,7 @@ class PlumeVisualizer(HasTraits):
 
     def calc_estimation(self, data):
         predictor = recorder.load_obj(data.root.gp)
-        area = data.root.conf[0]['global_conf']['area']
+        area = data.root.conf[0]['area']
         return predict_on_volume(predictor, area, [30, 30, 20])
 
     @staticmethod

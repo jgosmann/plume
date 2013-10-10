@@ -10,8 +10,8 @@ import tables
 
 from config import instantiate
 from plume import QRSimApplication
-from error_estimation import sample_with_metropolis_hastings, Reward, RMSE, \
-    WRMSE, LogLikelihood
+from error_estimation import gen_probe_locations, Reward, RMSE, WRMSE, \
+    LogLikelihood
 import prediction
 from prediction import ZeroPredictor
 
@@ -64,7 +64,7 @@ class KernelTester(object):
         self.client.reset_seed(self.conf['seedlist'][trial])
         self.client.reset()
 
-        x = self._gen_probe_locations()
+        x = gen_probe_locations(self.client, self.conf)
         rnd.shuffle(x)
         y = np.asarray(self.client.get_samples(x))
         train_x = x[:self.conf['train_size']]
@@ -126,31 +126,6 @@ class KernelTester(object):
             m = measure(gp, test_x, test_y)
             for i, name in enumerate(measure.return_value_names):
                 self.fileh.getNode(group, name)[trial] = m[i]
-
-    def _gen_probe_locations(self):
-        area = np.asarray(self.conf['area'])
-        sources = self.client.get_sources()
-
-        num_uniform_samples = self.conf['num_uniform_samples']
-        num_samples_per_source = self.conf['num_source_samples'] // len(
-            sources)
-        mh_stride = self.conf['mh_stride']
-
-        uniform_samples = area[:, 0] + rnd.rand(
-            num_uniform_samples, 3) * np.squeeze(np.diff(area, axis=1))
-
-        samples = [sample_with_metropolis_hastings(
-            self.client, source, area, num_samples_per_source,
-            self.conf['proposal_std'])[0][::mh_stride]
-            for source in sources]
-
-        samples_gauss = []
-        for i in xrange(mh_stride):
-            samples_gauss.extend(
-                self.conf['proposal_std'] * rnd.randn(len(s), 3) + s
-                for s in samples)
-
-        return np.concatenate([uniform_samples] + samples + samples_gauss)
 
 
 class TryKernelsApplication(QRSimApplication):

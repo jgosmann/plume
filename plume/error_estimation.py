@@ -130,7 +130,7 @@ class RMSE(ErrorMeasure):
 
     def __call__(self, gp, test_x, test_y):
         density = gaussian_kde(test_x.T)
-        pred = np.maximum(0, gp.predict(test_x))
+        pred = np.squeeze(np.maximum(0, gp.predict(test_x)))
         return np.sqrt(
             np.mean(np.square((pred - test_y) / density(test_x.T)), axis=0)),
 
@@ -142,7 +142,7 @@ class WRMSE(ErrorMeasure):
     def __call__(self, gp, test_x, test_y):
         density = gaussian_kde(test_x.T)
         weighting = test_y / test_y.max()
-        pred = np.maximum(0, gp.predict(test_x))
+        pred = np.squeeze(np.maximum(0, gp.predict(test_x)))
         return np.sqrt(np.mean(np.square(
             (pred - test_y) * weighting / density(test_x.T)), axis=0)),
 
@@ -153,3 +153,26 @@ class LogLikelihood(ErrorMeasure):
 
     def __call__(self, gp, test_x, test_y):
         return -gp.calc_neg_log_likelihood(),
+
+
+def gen_probe_locations(client, conf):
+    area = np.asarray(conf['area'])
+    sources = client.get_sources()
+
+    num_uniform_samples = conf['num_uniform_samples']
+    num_samples_per_source = conf['num_source_samples'] // len(sources)
+    mh_stride = conf['mh_stride']
+
+    uniform_samples = area[:, 0] + rnd.rand(
+        num_uniform_samples, 3) * np.squeeze(np.diff(area, axis=1))
+
+    samples = [sample_with_metropolis_hastings(
+        client, source, area, num_samples_per_source,
+        conf['proposal_std'])[0][::mh_stride] for source in sources]
+
+    samples_gauss = []
+    for i in xrange(mh_stride):
+        samples_gauss.extend(
+            conf['proposal_std'] * rnd.randn(len(s), 3) + s for s in samples)
+
+    return np.concatenate([uniform_samples] + samples + samples_gauss)

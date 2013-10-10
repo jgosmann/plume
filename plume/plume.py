@@ -67,7 +67,7 @@ def do_simulation_run(trial, output_filename, conf, client):
         fileh.createArray(
             '/', 'repeat', [trial], title='Number of repeat run.')
 
-        num_steps = conf['global_conf']['duration_in_steps']
+        num_steps = conf['duration_in_steps']
         kernel = instantiate(*conf['kernel'])
         predictor = instantiate(*conf['predictor'], prefix_args=(kernel,))
         if 'bounds' in conf:
@@ -79,12 +79,10 @@ def do_simulation_run(trial, output_filename, conf, client):
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
 
         target_chooser = behaviors.ChainTargetChoosers([
-            behaviors.SurroundArea(
-                conf['global_conf']['area'], conf['margin']),
+            behaviors.SurroundArea(conf['area'], conf['margin']),
             behaviors.AcquisitionFnTargetChooser(
                 instantiate(*conf['acquisition_fn'], predictor=predictor),
-                conf['global_conf']['area'], conf['margin'],
-                conf['grid_resolution'])])
+                conf['area'], conf['margin'], conf['grid_resolution'])])
         controller = behaviors.FollowWaypoints(
             target_chooser, conf['target_precision'])
         updater = instantiate(
@@ -97,7 +95,7 @@ def do_simulation_run(trial, output_filename, conf, client):
         sim_controller = Controller(client, controller, behavior)
         sim_controller.init_new_sim(conf['seedlist'][trial])
 
-        recorder.init(conf['global_conf']['area'])
+        recorder.init(conf)
         sim_controller.add_recorder(recorder)
 
         if hasattr(behavior, 'targets'):
