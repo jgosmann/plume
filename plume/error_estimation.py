@@ -174,5 +174,8 @@ def gen_probe_locations(client, conf):
     for i in xrange(mh_stride):
         samples_gauss.extend(
             conf['proposal_std'] * rnd.randn(len(s), 3) + s for s in samples)
+    samples_gauss = filter(
+        lambda x: np.all(x > area[:, 0]) and np.all(x < area[:, 1]),
+        samples_gauss)
 
     return np.concatenate([uniform_samples] + samples + samples_gauss)
