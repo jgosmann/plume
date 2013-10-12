@@ -26,7 +26,7 @@ def sample_with_metropolis_hastings(
             x = x_new
             f = f_new
 
-        positions[i] = x
+        positions[i] = x_new
         values[i] = f
 
     return positions, values
