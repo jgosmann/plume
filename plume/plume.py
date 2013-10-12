@@ -5,6 +5,7 @@ import logging
 import os.path
 import sys
 
+import numpy.random as rnd
 import pexpect
 from qrsim.tcpclient import UAVControls
 import tables
@@ -174,6 +175,7 @@ class Plume(QRSimApplication):
             'automatically).')
 
     def _run_application(self, args, conf, client):
+        rnd.seed(conf['pyseed'])
         clean = True
         for i in xrange(conf['repeats']):
             try:
