@@ -105,8 +105,10 @@ def do_simulation_run(trial, output_filename, conf, client):
             targets_recorder.init()
             sim_controller.add_recorder(targets_recorder)
 
-        sim_controller.run(num_steps)
-        store_obj(fileh, fileh.createGroup('/', 'gp'), predictor)
+        try:
+            sim_controller.run(num_steps)
+        finally:
+            store_obj(fileh, fileh.createGroup('/', 'gp'), predictor)
 
 
 class QRSimApplication(object):
