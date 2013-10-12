@@ -369,7 +369,7 @@ class SparseGP(object):
         self.y_bv[:] = y_train
 
         L_inv = inv(cholesky(
-            self.kernel(x_train, x_train) +
+            self.kernel(x_train, x_train, y_train, y_train) +
             np.eye(len(x_train)) * self.noise_var))
         self.K_inv[:, :] = np.dot(L_inv.T, L_inv)
         self.alpha[:] = np.squeeze(np.dot(self.K_inv, y_train))
@@ -390,8 +390,8 @@ class SparseGP(object):
 
     def add_single_observation(self, x, y):
         x = np.atleast_2d(x)
-        k = self.kernel(self.x_bv, x)
-        k_star = np.squeeze(self.kernel(x, x))
+        k = self.kernel(self.x_bv, x, self.y_bv.T, y)
+        k_star = np.squeeze(self.kernel(x, x, y, y))
 
         gamma = np.squeeze(k_star - np.einsum('ij,jk,kl', k.T, self.K_inv, k))
         e_hat = np.atleast_1d(np.squeeze(np.dot(self.K_inv, k)))
@@ -475,13 +475,14 @@ class SparseGP(object):
             k, k_derivative = self.kernel(
                 x, self.x_bv, eval_derivative=True)
         else:
-            k = self.kernel(x, self.x_bv)
+            k = self.kernel(x, self.x_bv, np.zeros(len(x)), self.y_bv.T)
         pred = np.dot(k, np.atleast_2d(self.alpha).T)
 
         if eval_MSE:
             mse = np.maximum(
                 self.noise_var,
-                self.noise_var + self.kernel.diag(x, x) + np.einsum(
+                self.noise_var + self.kernel.diag(
+                    x, x, np.zeros(len(x)), np.zeros(len(x))) + np.einsum(
                     'ij,jk,ki->i', k, self.C, k.T))
 
         if eval_derivatives:
