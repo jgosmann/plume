@@ -36,7 +36,7 @@ def _draw_from_proposal_dist(x0, area, proposal_std):
     d = len(area)
     x = np.array(3 * [np.inf])
     while np.any(x < area[:, 0]) or np.any(x > area[:, 1]):
-            x = x0 + proposal_std * rnd.randn(d)
+        x = x0 + proposal_std * rnd.randn(d)
     return x
 
 
