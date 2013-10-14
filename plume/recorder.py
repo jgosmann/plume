@@ -190,8 +190,9 @@ class TaskPlumeRecorder(GeneralRecorder):
         value, = RMSE()(pred, self.test_x, self.test_y)
         self._rmse.append([value])
 
-        value, = WRMSE()(pred, self.test_x, self.test_y)
-        self._wrmse.append([value])
+        value2, = WRMSE()(pred, self.test_x, self.test_y)
+        self._wrmse.append([value2])
+        logger.info('Error: {}, {}'.format(value, value2))
 
     def _record_kernel_params(self):
         self._kernel_params.append([self.predictor.kernel.params])
