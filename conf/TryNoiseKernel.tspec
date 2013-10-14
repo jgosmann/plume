@@ -1,0 +1,12 @@
+experiment = Kernels
+
+__cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Basic influence of parameters on {kernel}.' python plume/try_kernels.py -o {kernel}_{__name__!q} -c {configfile!t}"""
+configfile = conf/try_noise_kernel.conf.in
+
+kernel = Matern32Kernel
+
+[SingleSource_dispersion]
+    task = TaskPlumeSingleSourceGaussianDispersionDefaultControls
+
+[MultipleSource_dispersion]
+    task = TaskPlumeMultiSourceGaussianDispersionDefaultControls
