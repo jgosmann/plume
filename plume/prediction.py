@@ -136,7 +136,7 @@ class ExponentialKernel(object):
 
 
 class Matern32Kernel(object):
-    def __init__(self, lengthscale, variance=1.0):
+    def __init__(self, lengthscale=1, variance=1.0):
         self.lengthscale = lengthscale
         self.variance = variance
 
