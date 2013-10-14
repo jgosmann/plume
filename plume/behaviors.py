@@ -245,7 +245,7 @@ class PDUCB(DUCBBased):
         else:
             density = np.zeros_like(mse)
         ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
-            kappa * np.sqrt(mse)[:, None] + \
+            2 * kappa * np.sqrt(mse)[:, None] + \
             (-1) * kappa * np.sqrt(density)[:, None] + \
             self.gamma * sq_dist
         return np.squeeze(ucb)
@@ -264,7 +264,7 @@ class PDUCB(DUCBBased):
             density = np.zeros_like(mse)
             dender = np.zeros_like(mse_derivative)
         ucb_derivative = pred_derivative / (pred + self.epsilon) + \
-            kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
+            2 * kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
             (-1) * kappa * dender * 0.5 / np.sqrt(density)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
         return np.squeeze(ucb_derivative)
