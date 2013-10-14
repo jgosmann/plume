@@ -4,6 +4,7 @@ import warnings
 import numpy as np
 from numpy.linalg import cholesky, inv, linalg
 from scipy.optimize import fmin_l_bfgs_b
+from scipy.stats import gaussian_kde
 
 from nputil import GrowingArray, Growing2dArray, meshgrid_nd
 
@@ -482,9 +483,14 @@ class SparseGP(object):
         pred = np.dot(k, np.atleast_2d(self.alpha).T)
 
         if eval_MSE:
+            density = gaussian_kde(self.x_bv.T)
+            count = len(self.x_bv) * np.apply_along_axis(
+                density.integrate_gaussian, 1, x,
+                np.eye(3) * self.kernel.lengthscale)
+            n = self.noise_var / (1 + count)
             mse = np.maximum(
-                self.noise_var,
-                self.noise_var + self.kernel.diag(
+                n,
+                n + self.kernel.diag(
                     x, x, np.zeros(len(x)), np.zeros(len(x))) + np.einsum(
                     'ij,jk,ki->i', k, self.C, k.T))
 
