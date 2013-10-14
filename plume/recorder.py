@@ -147,6 +147,8 @@ class TaskPlumeRecorder(GeneralRecorder):
 
         self.test_x = gen_probe_locations(self.client, conf)
         self.test_y = np.asarray(self.client.get_samples(self.test_x))
+        self._sources = self.fileh.createArray(
+            '/', 'sources', self.client.get_sources())
 
     def record(self):
         GeneralRecorder.record(self)
