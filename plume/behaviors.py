@@ -240,14 +240,13 @@ class PDUCB(DUCBBased):
         kappa = np.log(self.predictor.y_bv.max() + self.epsilon) - \
             np.log(self.epsilon)
         if self.predictor.deleted_bv.rows > 0:
-            density = np.sum(self.predictor.kernel(
+            density = np.mean(self.predictor.kernel(
                 np.atleast_2d(x), self.predictor.deleted_bv.data), axis=1)
-            density /= self.predictor.deleted_bv.rows
         else:
-            density = np.ones_like(mse)
+            density = np.zeros_like(mse)
         ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
-            kappa * np.sqrt(mse)[:, None] - \
-            kappa * np.sqrt(density)[:, None] + \
+            kappa * np.sqrt(mse)[:, None] + \
+            (-1) * kappa * np.sqrt(density)[:, None] + \
             self.gamma * sq_dist
         return np.squeeze(ucb)
 
@@ -259,14 +258,14 @@ class PDUCB(DUCBBased):
             density, dender = self.predictor.kernel(
                 np.atleast_2d(x), self.predictor.deleted_bv.data,
                 eval_derivative=True)
-            density = np.sum(density, axis=1) / self.predictor.deleted_bv.rows
-            dender = np.sum(dender, axis=1) / self.predictor.deleted_bv.rows
+            density = np.mean(density, axis=1)
+            dender = np.mean(dender, axis=1)
         else:
             density = np.zeros_like(mse)
             dender = np.zeros_like(mse_derivative)
         ucb_derivative = pred_derivative / (pred + self.epsilon) + \
             kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
-            kappa * dender * 0.5 / np.sqrt(density)[:, None] + \
+            (-1) * kappa * dender * 0.5 / np.sqrt(density)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
         return np.squeeze(ucb_derivative)
 
