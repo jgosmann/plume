@@ -8,12 +8,12 @@ configfile = conf/pducb.py.in
     acq_fn = """('behaviors', 'DUCB', (), dict(
         kappa=kappa, mse_scaling=mse_scaling, gamma=gamma))"""
     _kappa = 0.1, 0.5, 0.75, 1, 1.25, 1.5, 2
-    _mse_scaling = 'auto', 1
+    _mse_scaling = "'auto'", 1
     _gamma = 0, -1e-6, -1e-5, -1e-4, -1e-3, -1e-2
 
 [PDUCB]
     acq_fn = """('behaviors', 'PDUCB', (), dict(
         kappa=kappa, mse_scaling=mse_scaling, gamma=gamma, epsilon=1e-30))"""
     _kappa = 0.1, 0.5, 0.75, 1, 1.25, 1.5, 2
-    _mse_scaling = 'auto', 70
+    _mse_scaling = "'auto'", 70
     _gamma = 0, -1e-6, -1e-5, -1e-4, -1e-3, -1e-2
