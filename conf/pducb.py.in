@@ -16,7 +16,6 @@ seedlist = [
 kernel = ('prediction', 'Matern32Kernel', (5,))
 predictor = ('prediction', 'SparseGP', (1e-10, 0, 1000))
 
-priors = {priors}
 kappa = {kappa}
 mse_scaling = {mse_scaling}
 gamma = {gamma}
