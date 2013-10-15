@@ -210,23 +210,32 @@ class DUCBBased(DifferentiableFn):
 
 
 class DUCB(DUCBBased):
-    def __init__(self, predictor, kappa, gamma):
+    def __init__(self, predictor, kappa, mse_scaling, gamma):
         super(DUCB, self).__init__(predictor)
         self.kappa = kappa
+        self.mse_scaling = mse_scaling
         self.gamma = gamma
 
     def _eval_fn(self, common_terms, x, noisy_states):
         pred, unused, mse, unused, sq_dist = common_terms
-        ucb = pred + self.kappa * mse[:, None] + self.gamma * np.sqrt(sq_dist)
+        ucb = pred + self._mse_scaling() * mse[:, None] + \
+            self.gamma * np.sqrt(sq_dist)
         return np.squeeze(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
         x = np.atleast_2d(x)
         pos = np.atleast_2d(noisy_states[0].position)
         unused, pred_derivative, mse, mse_derivative, dist = common_terms
-        ucb_derivative = pred_derivative + self.kappa * mse_derivative + \
+        ucb_derivative = pred_derivative + \
+            self._mse_scaling() * mse_derivative + \
             self.gamma * (x - pos) / np.sqrt(dist)
         return np.squeeze(ucb_derivative)
+
+    def _mse_scaling(self):
+        if self.mse_scaling == 'auto':
+            return self.kappa * self.predictor.y_bv.max()
+        else:
+            return self.kappa * self.mse_scaling
 
 
 class PDUCB(DUCBBased):
