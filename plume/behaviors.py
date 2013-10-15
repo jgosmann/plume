@@ -230,31 +230,28 @@ class DUCB(DUCBBased):
 
 
 class PDUCB(DUCBBased):
-    def __init__(self, predictor, kappa, gamma, epsilon):
+    def __init__(self, predictor, kappa, mse_scaling, gamma, epsilon):
         super(PDUCB, self).__init__(predictor)
         self.kappa = kappa
+        self.mse_scaling = mse_scaling
         self.gamma = gamma
         self.epsilon = epsilon
 
     def _eval_fn(self, common_terms, x, noisy_states):
         pred, unused, mse, unused, sq_dist = common_terms
-        kappa = np.log(self.predictor.y_bv.max() + self.epsilon) - \
-            np.log(self.epsilon)
         if self.predictor.deleted_bv.rows > 0:
             density = np.mean(self.predictor.kernel(
                 np.atleast_2d(x), self.predictor.deleted_bv.data), axis=1)
         else:
             density = np.zeros_like(mse)
         ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
-            2 * kappa * np.sqrt(mse)[:, None] + \
-            (-1) * kappa * np.sqrt(density)[:, None] + \
+            self._mse_scaling() * np.sqrt(mse)[:, None] + \
+            (-1) * self._mse_scaling() * np.sqrt(density)[:, None] + \
             self.gamma * sq_dist
         return np.squeeze(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
         pred, pred_derivative, mse, mse_derivative, sq_dist = common_terms
-        kappa = np.log(self.predictor.y_bv.max() + self.epsilon) - \
-            np.log(self.epsilon)
         if self.predictor.deleted_bv.rows > 0:
             density, dender = self.predictor.kernel(
                 np.atleast_2d(x), self.predictor.deleted_bv.data,
@@ -265,10 +262,20 @@ class PDUCB(DUCBBased):
             density = np.zeros_like(mse)
             dender = np.zeros_like(mse_derivative)
         ucb_derivative = pred_derivative / (pred + self.epsilon) + \
-            2 * kappa * mse_derivative * 0.5 / np.sqrt(mse)[:, None] + \
-            (-1) * kappa * dender * 0.5 / np.sqrt(density)[:, None] + \
+            self._mse_scaling() * mse_derivative * 0.5 / np.sqrt(
+                mse)[:, None] + \
+            (-1) * self._mse_scaling() * dender * 0.5 / np.sqrt(
+                density)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
         return np.squeeze(ucb_derivative)
+
+    def _mse_scaling(self):
+        if self.mse_scaling == 'auto':
+            return self.kappa * np.log(
+                self.predictor.y_bv.max() + self.epsilon) - np.log(
+                self.epsilon)
+        else:
+            return self.kappa * self.mse_scaling
 
 
 class FollowWaypoints(object):
