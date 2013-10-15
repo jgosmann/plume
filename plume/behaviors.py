@@ -197,10 +197,11 @@ class DUCBBased(DifferentiableFn):
         pos = np.atleast_2d(noisy_states[0].position)
         if eval_derivative:
             pred, pred_derivative, mse, mse_derivative = \
-                self.predictor.predict(x, eval_MSE=True, eval_derivatives=True)
+                self.predictor.predict(
+                    x, eval_MSE='err', eval_derivatives=True)
         else:
             pred, mse = self.predictor.predict(
-                x, eval_MSE=True, eval_derivatives=False)
+                x, eval_MSE='err', eval_derivatives=False)
             pred_derivative = mse_derivative = None
         sq_dist = -2 * np.dot(x, pos.T) + (
             np.sum(np.square(x), 1)[:, None] +

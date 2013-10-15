@@ -482,15 +482,17 @@ class SparseGP(object):
             k = self.kernel(x, self.x_bv, np.zeros(len(x)), self.y_bv.T)
         pred = np.dot(k, np.atleast_2d(self.alpha).T)
 
-        if eval_MSE:
-            density = gaussian_kde(self.x_bv.T)
-            count = len(self.x_bv) * np.apply_along_axis(
-                density.integrate_gaussian, 1, x,
-                np.eye(3) * self.kernel.lengthscale)
-            n = self.noise_var / (1 + count)
+        if eval_MSE is not False:
+            noise_part = self.noise_var
+            if eval_MSE == 'err':
+                density = gaussian_kde(self.x_bv.T)
+                count = len(self.x_bv) * np.apply_along_axis(
+                    density.integrate_gaussian, 1, x,
+                    np.eye(3) * self.kernel.lengthscale)
+                noise_part /= (1 + count)
             mse = np.maximum(
-                n,
-                n + self.kernel.diag(
+                noise_part,
+                noise_part + self.kernel.diag(
                     x, x, np.zeros(len(x)), np.zeros(len(x))) + np.einsum(
                     'ij,jk,ki->i', k, self.C, k.T))
 
