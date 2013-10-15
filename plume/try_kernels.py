@@ -5,6 +5,7 @@ import os
 import sys
 
 import numpy as np
+from numpy.linalg import LinAlgError
 import numpy.random as rnd
 import tables
 
@@ -94,14 +95,21 @@ class KernelTester(object):
             kernel = instantiate(
                 *self.conf['kernel'], args=(lengthscale, variance))
             gp = prediction.OnlineGP(kernel, self.conf['noise_var'])
-            gp.fit(train_x, train_y)
+            try:
+                gp.fit(train_x, train_y)
 
-            for measure in self.measures:
-                m = measure(gp, test_x, test_y)
-                m_group = self.fileh.getNode('/', measure.name)
-                gp_pred = self.fileh.getNode(m_group, 'gp_pred')
-                for k, name in enumerate(measure.return_value_names):
-                    self.fileh.getNode(gp_pred, name)[i, j, trial] = m[k]
+                for measure in self.measures:
+                    m = measure(gp, test_x, test_y)
+                    m_group = self.fileh.getNode('/', measure.name)
+                    gp_pred = self.fileh.getNode(m_group, 'gp_pred')
+                    for k, name in enumerate(measure.return_value_names):
+                        self.fileh.getNode(gp_pred, name)[i, j, trial] = m[k]
+            except LinAlgError:
+                for measure in self.measures:
+                    m_group = self.fileh.getNode('/', measure.name)
+                    gp_pred = self.fileh.getNode(m_group, 'gp_pred')
+                    for k, name in enumerate(measure.return_value_names):
+                        self.fileh.getNode(gp_pred, name)[i, j, trial] = np.nan
 
         logger.info('Trial {}, likelihood optimization'.format(trial))
         max_likelihood_idx = np.unravel_index(np.argmax(
@@ -111,21 +119,28 @@ class KernelTester(object):
         variance = 1.0
         kernel = instantiate(
             *self.conf['kernel'], args=(lengthscale, variance))
-        gp = prediction.LikelihoodGP(
-            kernel, self.conf['noise_var'], self.conf['train_size'])
-        gp.bounds = [(0, None), (1, 1)]
-        gp.fit(train_x, train_y)
-        self.fileh.root.likelihood_optimization.lengthscales[trial] = \
-            kernel.lengthscale
-        self.fileh.root.likelihood_optimization.variances[trial] = \
-            kernel.variance
-        for measure in self.measures:
-            group = self.fileh.getNode(
-                '/likelihood_optimization', measure.name)
+        try:
+            gp = prediction.LikelihoodGP(
+                kernel, self.conf['noise_var'], self.conf['train_size'])
+            gp.bounds = [(0, None), (1, 1)]
+            gp.fit(train_x, train_y)
+            self.fileh.root.likelihood_optimization.lengthscales[trial] = \
+                kernel.lengthscale
+            self.fileh.root.likelihood_optimization.variances[trial] = \
+                kernel.variance
+            for measure in self.measures:
+                group = self.fileh.getNode(
+                    '/likelihood_optimization', measure.name)
 
-            m = measure(gp, test_x, test_y)
-            for i, name in enumerate(measure.return_value_names):
-                self.fileh.getNode(group, name)[trial] = m[i]
+                m = measure(gp, test_x, test_y)
+                for i, name in enumerate(measure.return_value_names):
+                    self.fileh.getNode(group, name)[trial] = m[i]
+        except LinAlgError:
+            for measure in self.measures:
+                group = self.fileh.getNode(
+                    '/likelihood_optimization', measure.name)
+                for i, name in enumerate(measure.return_value_names):
+                    self.fileh.getNode(group, name)[trial] = np.nan
 
 
 class TryKernelsApplication(QRSimApplication):
