@@ -1,29 +1,30 @@
-from config import ConfObj
-
-
-global_conf = {{
-    'duration_in_steps': 1000,
-    'area': [[-140, 140], [-140, 140], [-80, 0]]
-}}
+duration_in_steps = 3000
+area = [[-140, 140], [-140, 140], [-80, 0]]
 repeats = 20
+num_uniform_samples = 1000
+num_source_samples = 4200
+mh_stride = 10
+proposal_std = 10
+pyseed = 195776224
 
 seedlist = [
-    142612519, 1697227051, 418162616, 2078398864, 173369639,
-    43785493, 41274965, 977868009,  788601892, 1856626226,
-    2127183363, 573233381, 851484452, 1165171137, 1155771934,
-    1065419701, 710551112, 540986725, 591642657, 713416342,
-    577910394, 1326096355, 1820819819, 21436141, 219779429,
-    1523504061, 1109833936, 2068461465, 877116277, 733511636,
-    303814995, 1451178889, 1111479433, 1095713870, 1243604952,
-    1637105932, 1184734207, 1983225747, 1870564744, 288781622,
-    655709180, 1772000704, 1042609825, 720966052, 1292095483,
-    776840730, 1450751032, 1785970451, 210791265, 1249102506]
+    805261625, 1639457901, 1501122198, 1522617098, 367098085,
+    2020607478, 2036434394, 1714744543, 711440099, 2003823781,
+    1355775429, 270431546, 193167344, 1960049129, 576093111,
+    1122396727, 1976837197, 880502836, 1501326507, 1463703399]
 
-kernel = ConfObj({kernel!r}, {lengthscale})
-predictor = ConfObj('LikelihoodGP', 1e-10, global_conf['duration_in_steps'])
-bounds = {bounds}
+kernel = ('prediction', 'Matern32Kernel', (5,))
+predictor = ('prediction', 'SparseGP', (1e-10, 0, 1000))
+
 priors = {priors}
 kappa = {kappa}
+mse_scaling = {mse_scaling}
 gamma = {gamma}
-behavior = ConfObj({behavior})
+acquisition_fn = {acq_fn}
+margin = 10
+grid_resolution = [5, 5, 5]
+target_precision = 3
+
+updater = ('behaviors', 'BatchPredictionUpdater')
+
 task = {task!r}
