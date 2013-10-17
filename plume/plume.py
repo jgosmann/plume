@@ -13,8 +13,8 @@ import tables
 import behaviors
 from config import instantiate, load_config
 from client import TaskPlumeClient
-from recorder import ControlsRecorder, ErrorRecorder, GeneralRecorder, \
-    store_obj, TargetsRecorder, TaskPlumeRecorder
+from recorder import ControlsRecorder, ErrorRecorder, store_obj, \
+    TargetsRecorder, TaskPlumeRecorder
 
 logger = logging.getLogger(__name__)
 
