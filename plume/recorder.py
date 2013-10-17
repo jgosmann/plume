@@ -141,13 +141,13 @@ class TaskPlumeRecorder(GeneralRecorder):
         self._kernel_params.append([self.predictor.kernel.params])
 
     def prune(self):
-        self.fileh.remove_node(self._plume_measurements)
-        self.fileh.remove_node(self._kernel_params)
-        self.fileh.remove_node(self._positions)
-        self.fileh.remove_node(self.fileh.root, 'sample_locations')
-        self.fileh.remove_node(self.fileh.root, 'reference_samples')
-        self.fileh.remove_node(self.fileh.root, 'gt_locations')
-        self.fileh.remove_node(self.fileh.root, 'gt_samples')
+        self.fileh.removeNode(self._plume_measurements)
+        self.fileh.removeNode(self._kernel_params)
+        self.fileh.removeNode(self._positions)
+        self.fileh.removeNode(self.fileh.root, 'sample_locations')
+        self.fileh.removeNode(self.fileh.root, 'reference_samples')
+        self.fileh.removeNode(self.fileh.root, 'gt_locations')
+        self.fileh.removeNode(self.fileh.root, 'gt_samples')
 
     plume_measurements = property(lambda self: self._plume_measurements.read())
     kernel_params = property(lambda self: self._kernel_params.read())
