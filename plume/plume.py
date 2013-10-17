@@ -116,6 +116,7 @@ def do_simulation_run(trial, output_filename, conf, client):
                 '/', 'exception', tables.ObjectAtom(),
                 title='Exception which was raised.')
             err_tbl.append(err)
+            raise err
         finally:
             if conf['full_record']:
                 store_obj(fileh, fileh.createGroup('/', 'gp'), predictor)
