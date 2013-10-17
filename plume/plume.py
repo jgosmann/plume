@@ -111,6 +111,11 @@ def do_simulation_run(trial, output_filename, conf, client):
 
         try:
             sim_controller.run(num_steps)
+        except Exception as err:
+            err_tbl = fileh.createVLArray(
+                '/', 'exception', tables.ObjectAtom(),
+                title='Exception which was raised.')
+            err_tbl.append(err)
         finally:
             if conf['full_record']:
                 store_obj(fileh, fileh.createGroup('/', 'gp'), predictor)
