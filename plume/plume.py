@@ -60,6 +60,7 @@ class Controller(object):
 
 
 def do_simulation_run(trial, output_filename, conf, client):
+    rnd.seed(conf['pyseedlist'][trial])
     with tables.openFile(output_filename, 'w') as fileh:
         tbl = fileh.createVLArray(
             '/', 'conf', tables.ObjectAtom(),
@@ -190,7 +191,6 @@ class Plume(QRSimApplication):
             'automatically).')
 
     def _run_application(self, args, conf, client):
-        rnd.seed(conf['pyseed'])
         clean = True
         for i in xrange(conf['repeats']):
             try:
