@@ -189,10 +189,17 @@ class Plume(QRSimApplication):
             '-o', '--output', nargs=1, type=str, default=['plume'],
             help='Output file name without extension (will be add '
             'automatically).')
+        self.parser.add_argument(
+            '-t', '--trial', nargs=1, type=int, required=False,
+            help='Only run the given trial.')
 
     def _run_application(self, args, conf, client):
         clean = True
-        for i in xrange(conf['repeats']):
+        if args.trial is not None:
+            trials = args.trials
+        else:
+            trials = xrange(conf['repeats'])
+        for i in trials:
             try:
                 output_filename = os.path.join(
                     args.output_dir[0], args.output[0] + '.%i.h5' % i)
