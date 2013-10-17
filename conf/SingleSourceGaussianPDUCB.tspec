@@ -1,0 +1,12 @@
+experiment = SingleSourceGaussian
+task = TaskPlumeSingleSourceGaussianDefaultControls
+
+__cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Basic parameter search and comparision of DUCB vs PDUCB' python plume/plume.py -o {__name__!q} -c {configfile!t} -t {__repeat__} -q"""
+configfile = conf/pducb.py.in
+
+[PDUCB]
+    acq_fn = """('behaviors', 'PDUCB', (), dict(
+        kappa=kappa, mse_scaling=mse_scaling, gamma=gamma, epsilon=1e-30))"""
+    _kappa = 0.1, 0.5, 0.75, 1, 1.25, 1.5, 2
+    _mse_scaling = "'auto'", 70
+    _gamma = 0, -1e-6, -1e-5, -1e-4, -1e-3, -1e-2
