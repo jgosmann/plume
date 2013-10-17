@@ -331,10 +331,11 @@ class BatchPredictionUpdater(object):
     def step(self, noisy_states):
         if self.noisy_positions is None:
             self.noisy_positions = GrowingArray(
-                (len(noisy_states), 3), self.plume_recorder.expected_steps)
+                (len(noisy_states), 3),
+                expected_rows=self.plume_recorder.expected_steps)
 
         self.noisy_positions.append([s.position for s in noisy_states])
-        can_do_first_training = self.plume_recorder.positions.shape[1] > 1
+        can_do_first_training = self.plume_recorder.num_recorded > 1
         if not self.predictor.trained and can_do_first_training:
             self.update_prediction()
 

@@ -13,8 +13,8 @@ import tables
 import behaviors
 from config import instantiate, load_config
 from client import TaskPlumeClient
-from recorder import ControlsRecorder, store_obj, TargetsRecorder, \
-    TaskPlumeRecorder
+from recorder import ControlsRecorder, ErrorRecorder, GeneralRecorder, \
+    store_obj, TargetsRecorder, TaskPlumeRecorder
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,7 @@ def do_simulation_run(trial, output_filename, conf, client):
                 predictor.priors[i] = instantiate(*conf['priors'][i])
 
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
+        err_recorder = ErrorRecorder(fileh, client, predictor, num_steps)
 
         target_chooser = behaviors.ChainTargetChoosers([
             behaviors.SurroundArea(conf['area'], conf['margin']),
@@ -92,14 +93,17 @@ def do_simulation_run(trial, output_filename, conf, client):
 
         behavior = controller.velocity_controller
 
-        client = ControlsRecorder(fileh, client, num_steps)
+        if conf['full_record']:
+            client = ControlsRecorder(fileh, client, num_steps)
         sim_controller = Controller(client, controller, behavior)
         sim_controller.init_new_sim(conf['seedlist'][trial])
 
         recorder.init(conf)
+        err_recorder.init(conf)
         sim_controller.add_recorder(recorder)
+        sim_controller.add_recorder(err_recorder)
 
-        if hasattr(behavior, 'targets'):
+        if hasattr(behavior, 'targets') and conf['full_record']:
             targets_recorder = TargetsRecorder(
                 fileh, behavior, client.numUAVs, num_steps)
             targets_recorder.init()
@@ -108,7 +112,10 @@ def do_simulation_run(trial, output_filename, conf, client):
         try:
             sim_controller.run(num_steps)
         finally:
-            store_obj(fileh, fileh.createGroup('/', 'gp'), predictor)
+            if conf['full_record']:
+                store_obj(fileh, fileh.createGroup('/', 'gp'), predictor)
+            else:
+                recorder.prune()
 
 
 class QRSimApplication(object):
