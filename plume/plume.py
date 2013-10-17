@@ -196,7 +196,7 @@ class Plume(QRSimApplication):
     def _run_application(self, args, conf, client):
         clean = True
         if args.trial is not None:
-            trials = args.trials
+            trials = args.trial
         else:
             trials = xrange(conf['repeats'])
         for i in trials:
