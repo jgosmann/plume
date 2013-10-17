@@ -315,10 +315,19 @@ class FollowWaypoints(object):
         if update_targets:
             for observer in self.observers:
                 observer.target_reached()
-            self.velocity_controller.targets = self.target_chooser.new_targets(
-                noisy_states)
+            nt = np.asarray(self.target_chooser.new_targets(noisy_states))
+            if self.velocity_controller.targets is not None:
+                change = np.sqrt(np.sum(np.square(
+                    self.velocity_controller.targets - nt), axis=1))
+                if np.all(change < self.target_precision):
+                    raise GotStuckError()
+            self.velocity_controller.targets = nt
             logger.info('Updated target {}'.format(
                 self.velocity_controller.targets))
+
+
+class GotStuckError(Exception):
+    pass
 
 
 class BatchPredictionUpdater(object):
