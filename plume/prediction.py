@@ -486,6 +486,8 @@ class SparseGP(object):
         self.C[:, :] += c_star / (q_star ** 2) * QQ_T - \
             (QC_T + QC_T.T) / q_star
         self.K_inv[:, :] -= QQ_T / q_star
+        self.L_inv[:, :] = cholesky(self.K_inv).T
+        self.CL_inv[:, :] = cholesky(-self.C).T
 
     def _exclude_from_vec(self, vec, idx, fill_value=0):
         excluded = vec[idx]
