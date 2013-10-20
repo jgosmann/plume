@@ -339,6 +339,7 @@ class SparseGP(object):
         self._C = np.zeros((max_bv + 1, max_bv + 1))
         self._K_inv = np.zeros((max_bv + 1, max_bv + 1))
         self._L_inv = np.zeros((max_bv + 1, max_bv + 1))
+        self._CL_inv = np.zeros((max_bv + 1, max_bv + 1))
         self.updates = 0
 
     x_bv = property(lambda self: self._x_bv[:self.num_bv])
@@ -347,6 +348,7 @@ class SparseGP(object):
     C = property(lambda self: self._C[:self.num_bv, :self.num_bv])
     K_inv = property(lambda self: self._K_inv[:self.num_bv, :self.num_bv])
     L_inv = property(lambda self: self._L_inv[:self.num_bv, :self.num_bv])
+    CL_inv = property(lambda self: self._L_inv[:self.num_bv, :self.num_bv])
 
     trained = property(lambda self: self.updates > 0)
 
@@ -360,6 +362,7 @@ class SparseGP(object):
         self._alpha.fill(0.0)
         self._K_inv.fill(0.0)
         self._L_inv.fill(0.0)
+        self._CL_inv.fill(0.0)
 
         if len(x_train) > self.max_bv:
             more_x = x_train[self.max_bv:, :]
@@ -375,6 +378,7 @@ class SparseGP(object):
         self.L_inv[:, :] = inv(cholesky(
             self.kernel(x_train, x_train, y_train, y_train) +
             np.eye(len(x_train)) * self.noise_var))
+        self.CL_inv[:, :] = self.L_inv
         self.K_inv[:, :] = np.dot(self.L_inv.T, self.L_inv)
         self.alpha[:] = np.squeeze(np.dot(self.K_inv, y_train))
         self.C[:, :] = -self.K_inv
@@ -412,6 +416,7 @@ class SparseGP(object):
             self._reduced_update(k, e_hat, q, r)
         else:
             self._extend_basis(x, y, k, q, r)
+            self._update_C(x, y, k, k_star)
             self._update_K(x, y, k, k_star)
             if self.num_bv > self.max_bv:
                 self._delete_bv()
@@ -427,11 +432,11 @@ class SparseGP(object):
 
     def _reduced_update(self, k, e_hat, q, r):
         s = np.squeeze(np.dot(self.C, k)) + e_hat
-        self._update_alpha_and_C(q, r, s)
-
-    def _update_alpha_and_C(self, q, r, s):
-        self.alpha[:] += q * s
+        self._update_alpha(q, r, s)
         self.C[:] += r * np.outer(s, s)
+
+    def _update_alpha(self, q, r, s):
+        self.alpha[:] += q * s
 
     def _update_K(self, x, y, k, k_star):
         B = np.dot(self.L_inv[:-1, :-1], k).T
@@ -447,6 +452,20 @@ class SparseGP(object):
         self.L_inv[-1:, -1:] = C_inv
         self.K_inv[:, :] = np.dot(self.L_inv.T, self.L_inv)
 
+    def _update_C(self, x, y, k, k_star):
+        B = np.dot(self.C_inv[:-1, :-1], k).T
+        CC_T = k_star + np.eye(len(x)) * self.noise_var - np.dot(B, B.T)
+        diag_indices = np.diag_indices_from(CC_T)
+        CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
+
+        # FIXME refit in case of LinAlgError
+        C_inv = inv(cholesky(CC_T))
+
+        self.CL_inv[-1:, :-1] = -np.dot(
+            np.dot(C_inv, B), self.L_inv[:-1, :-1])
+        self.CL_inv[-1:, -1:] = C_inv
+        self.C[:, :] = -np.dot(self.L_inv.T, self.L_inv)
+
     def _delete_bv(self):
         score = np.abs(self.alpha) / np.diag(self.K_inv)
         min_bv = np.argmin(score)
@@ -456,6 +475,7 @@ class SparseGP(object):
         self._exclude_from_vec(self.y_bv, min_bv)
         alpha_star = self._exclude_from_vec(self.alpha, min_bv)
         Q_star, q_star = self._exclude_from_mat(self.K_inv, min_bv)
+        self._exclude_from_mat(self.L_inv, min_bv)
         C_star, c_star = self._exclude_from_mat(self.C, min_bv)
 
         self.num_bv -= 1
