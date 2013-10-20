@@ -416,6 +416,7 @@ class SparseGP(object):
             self._reduced_update(k, e_hat, q, r)
         else:
             self._extend_basis(x, y, k, q, r)
+            self._update_alpha(q, r, s)
             self._update_C(x, y, k, k_star)
             self._update_K(x, y, k, k_star)
             if self.num_bv > self.max_bv:
@@ -427,8 +428,6 @@ class SparseGP(object):
         self.num_bv += 1
         self.x_bv[-1] = x
         self.y_bv[-1] = y
-
-        self._update_alpha_and_C(q, r, s)
 
     def _reduced_update(self, k, e_hat, q, r):
         s = np.squeeze(np.dot(self.C, k)) + e_hat
