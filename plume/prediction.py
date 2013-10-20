@@ -337,7 +337,6 @@ class SparseGP(object):
         self._y_bv = None
         self._alpha = np.zeros(max_bv + 1)
         self._C = np.zeros((max_bv + 1, max_bv + 1))
-        self._s = np.ones(max_bv + 1)
         self._K_inv = np.zeros((max_bv + 1, max_bv + 1))
         self.updates = 0
 
@@ -355,7 +354,6 @@ class SparseGP(object):
         self._y_bv = np.empty((self.max_bv + 1, y_train.shape[1]))
         self.deleted_bv = GrowingArray(
             (x_train.shape[1],), expected_rows=2 * self.max_bv)
-        self._s.fill(1.0)
         self._C.fill(0.0)
         self._alpha.fill(0.0)
         self._K_inv.fill(0.0)
