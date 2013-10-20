@@ -415,7 +415,7 @@ class SparseGP(object):
         if gamma < self.tolerance:
             self._reduced_update(k, e_hat, q, r)
         else:
-            self._extend_basis(x, y, k, q, r)
+            s = self._extend_basis(x, y, k, q, r)
             self._update_alpha(q, r, s)
             self._update_C(x, y, k, k_star)
             self._update_K(x, y, k, k_star)
@@ -428,6 +428,7 @@ class SparseGP(object):
         self.num_bv += 1
         self.x_bv[-1] = x
         self.y_bv[-1] = y
+        return s
 
     def _reduced_update(self, k, e_hat, q, r):
         s = np.squeeze(np.dot(self.C, k)) + e_hat
@@ -452,7 +453,7 @@ class SparseGP(object):
         self.K_inv[:, :] = np.dot(self.L_inv.T, self.L_inv)
 
     def _update_C(self, x, y, k, k_star):
-        B = np.dot(self.C_inv[:-1, :-1], k).T
+        B = np.dot(self.CL_inv[:-1, :-1], k).T
         CC_T = k_star + np.eye(len(x)) * self.noise_var - np.dot(B, B.T)
         diag_indices = np.diag_indices_from(CC_T)
         CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
