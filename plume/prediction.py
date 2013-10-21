@@ -431,7 +431,7 @@ class SparseGP(object):
 
         if self.num_bv > 0:
             sigma_x_sq = np.squeeze(self.noise_var + np.einsum(
-                'ij,jk,kl->il', k.T, -np.dot(self.R, self.R.T), k) + k_star)
+                'ij,jk,kl->il', k.T, self.C, k) + k_star)
         else:
             sigma_x_sq = self.noise_var + k_star
         q = (y - np.dot(self.alpha, k)) / sigma_x_sq
