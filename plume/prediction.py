@@ -350,15 +350,29 @@ class SparseGP(object):
     y_bv = property(lambda self: self._y_bv[:self.num_bv])
     alpha = property(lambda self: self._alpha[:self.num_bv])
     L_inv = property(lambda self: self._L_inv[:self.num_v, :self.num_bv])
-    K_inv = property(
-        lambda self: np.dot(self.L_inv.T, self.L_inv) +
-        self._K_inv_cor[:self.num_bv, :self.num_bv])
     R = property(lambda self: self._R[:self.num_bv, :self.num_v])
-    C = property(
-        lambda self: -np.dot(self.R, self.R.T) +
-        self._C_cor[:self.num_bv, :self.num_bv])
 
     trained = property(lambda self: self.updates > 0)
+
+    def get_C(self):
+        if self._C_cache is None:
+            self._C_cache = -np.dot(
+                self.R, self.R.T) + self._C_cor[:self.num_bv, :self.num_bv]
+        return self._C_cache
+
+    C = property(get_C)
+
+    def get_K_inv(self):
+        if self._K_inv_cache is None:
+            self._K_inv_cache = np.dot(self.L_inv.T, self.L_inv) + \
+                self._K_inv_cor[:self.num_bv, :self.num_bv]
+        return self._K_inv_cache
+
+    K_inv = property(get_K_inv)
+
+    def _invalidate_cache(self):
+        self._C_cache = None
+        self._K_inv_cache = None
 
     def fit(self, x_train, y_train):
         self.num_bv = min(len(x_train), self.max_bv)
@@ -373,6 +387,7 @@ class SparseGP(object):
         self._K_inv_cor.fill(0.0)
         self._R.fill(0.0)
         self._C_cor.fill(0.0)
+        self._invalidate_cache()
 
         if len(x_train) > self.max_bv:
             more_x = x_train[self.max_bv:, :]
@@ -445,6 +460,8 @@ class SparseGP(object):
         self._alpha[:self.num_bv] = self._alpha_cor[:self.num_bv] + np.squeeze(
             np.dot(self.R, np.dot(self.R.T, self.y_bv)))
 
+        self._invalidate_cache()
+
     def _reduced_update(self, k, e_hat, q, r):
         s = np.squeeze(np.dot(self.C, k)) + e_hat
         self._alpha_cor[:self.num_bv] += q * s
@@ -478,9 +495,13 @@ class SparseGP(object):
         self._alpha_cor[:self.num_bv] -= alpha_star / q_star * Q_star
         QQ_T = np.outer(Q_star, Q_star)
         QC_T = np.outer(Q_star, C_star)
-        self._C_cor[:self.num_bv, :self.num_bv] += \
-            c_star / (q_star ** 2) * QQ_T - (QC_T + QC_T.T) / q_star
-        self._K_inv_cor[:self.num_bv, :self.num_bv] -= QQ_T / q_star
+        C_cor = c_star / (q_star ** 2) * QQ_T - (QC_T + QC_T.T) / q_star
+        K_inv_cor = -QQ_T / q_star
+        self._C_cor[:self.num_bv, :self.num_bv] += C_cor
+        self._K_inv_cor[:self.num_bv, :self.num_bv] += K_inv_cor
+
+        self._C_cache = C[:-1, :-1] + C_cor
+        self._K_inv_cache = K_inv[:-1, :-1] + K_inv_cor
 
     def _exclude_from_vec(self, vec, idx, fill_value=0):
         excluded = vec[idx]
@@ -488,11 +509,12 @@ class SparseGP(object):
         vec[-1] = fill_value
         return excluded
 
-    def _extract_from_mat(self, mat, idx):
+    def _extract_from_mat(self, mat, idx, fill_value=0.0):
         excluded_diag = mat[idx, idx]
         excluded_vec = np.empty(len(mat) - 1)
         excluded_vec[:idx] = mat[idx, :idx]
         excluded_vec[idx:] = mat[idx, idx + 1:]
+        self._remove_from_mat(mat, idx, fill_value)
         return excluded_vec, excluded_diag
 
     def _remove_from_mat(self, mat, idx, fill_value=0.0):
