@@ -336,19 +336,15 @@ class SparseGP(object):
         self._x_bv = None
         self._y_bv = None
         self._alpha = np.zeros(max_bv + 1)
-        self._C = np.zeros((max_bv + 1, max_bv + 1))
-        self._K_inv = np.zeros((max_bv + 1, max_bv + 1))
         self._L_inv = np.zeros((max_bv + 1, max_bv + 1))
-        self._CL_inv = np.zeros((max_bv + 1, max_bv + 1))
+        self._R = np.zeros((max_bv + 1, max_bv + 1))
         self.updates = 0
 
     x_bv = property(lambda self: self._x_bv[:self.num_bv])
     y_bv = property(lambda self: self._y_bv[:self.num_bv])
     alpha = property(lambda self: self._alpha[:self.num_bv])
-    C = property(lambda self: self._C[:self.num_bv, :self.num_bv])
-    K_inv = property(lambda self: self._K_inv[:self.num_bv, :self.num_bv])
     L_inv = property(lambda self: self._L_inv[:self.num_bv, :self.num_bv])
-    CL_inv = property(lambda self: self._L_inv[:self.num_bv, :self.num_bv])
+    R = property(lambda self: self._R[:self.num_bv, :self.num_bv])
 
     trained = property(lambda self: self.updates > 0)
 
@@ -358,11 +354,9 @@ class SparseGP(object):
         self._y_bv = np.empty((self.max_bv + 1, y_train.shape[1]))
         self.deleted_bv = GrowingArray(
             (x_train.shape[1],), expected_rows=2 * self.max_bv)
-        self._C.fill(0.0)
         self._alpha.fill(0.0)
-        self._K_inv.fill(0.0)
         self._L_inv.fill(0.0)
-        self._CL_inv.fill(0.0)
+        self._R.fill(0.0)
 
         if len(x_train) > self.max_bv:
             more_x = x_train[self.max_bv:, :]
@@ -378,10 +372,9 @@ class SparseGP(object):
         self.L_inv[:, :] = inv(cholesky(
             self.kernel(x_train, x_train, y_train, y_train) +
             np.eye(len(x_train)) * self.noise_var))
-        self.CL_inv[:, :] = self.L_inv
-        self.K_inv[:, :] = np.dot(self.L_inv.T, self.L_inv)
-        self.alpha[:] = np.squeeze(np.dot(self.K_inv, y_train))
-        self.C[:, :] = -self.K_inv
+        self.R[:, :] = self.L_inv.T
+        K_inv = np.dot(self.L_inv.T, self.L_inv)
+        self.alpha[:] = np.squeeze(np.dot(K_inv, y_train))
 
         self.updates += 1
 
@@ -401,12 +394,13 @@ class SparseGP(object):
         k = self.kernel(self.x_bv, x, self.y_bv.T, y)
         k_star = np.squeeze(self.kernel(x, x, y, y))
 
-        gamma = np.squeeze(k_star - np.einsum('ij,jk,kl', k.T, self.K_inv, k))
-        e_hat = np.atleast_1d(np.squeeze(np.dot(self.K_inv, k)))
+        K_inv = np.dot(self.L_inv.T, self.L_inv)
+        gamma = np.squeeze(k_star - np.einsum('ij,jk,kl', k.T, K_inv, k))
+        e_hat = np.atleast_1d(np.squeeze(np.dot(K_inv, k)))
 
         if self.num_bv > 0:
             sigma_x_sq = np.squeeze(self.noise_var + np.einsum(
-                'ij,jk,kl->il', k.T, self.C, k) + k_star)
+                'ij,jk,kl->il', k.T, -np.dot(self.R, self.R.T), k) + k_star)
         else:
             sigma_x_sq = self.noise_var + k_star
         q = (y - np.dot(self.alpha, k)) / sigma_x_sq
@@ -415,79 +409,85 @@ class SparseGP(object):
         if gamma < self.tolerance:
             self._reduced_update(k, e_hat, q, r)
         else:
-            s = self._extend_basis(x, y, k, q, r)
-            self._update_alpha(q, r, s)
-            self._update_C(x, y, k, k_star)
-            self._update_K(x, y, k, k_star)
+            self._extend_basis(x, y, k, q, r)
             if self.num_bv > self.max_bv:
                 self._delete_bv()
 
     def _extend_basis(self, x, y, k, q, r):
-        s = np.concatenate((np.atleast_1d(np.squeeze(np.dot(self.C, k))), [1]))
+        C = -np.dot(self.R, self.R.T)
+        sqr_r = np.sqrt(-r)
 
         self.num_bv += 1
         self.x_bv[-1] = x
         self.y_bv[-1] = y
-        return s
+
+        self.R[:-1, -1] = sqr_r * np.squeeze(np.dot(C, k))
+        self.R[-1, -1] = sqr_r
+
+        self.L_inv[-1, :] = self.R[:, -1]
+        self.alpha[:] = np.squeeze(np.dot(self.R, np.dot(self.R.T, self.y_bv)))
 
     def _reduced_update(self, k, e_hat, q, r):
-        s = np.squeeze(np.dot(self.C, k)) + e_hat
-        self._update_alpha(q, r, s)
-        self.C[:] += r * np.outer(s, s)
+        raise NotImplementedError()
+        #s = np.squeeze(np.dot(self.C, k)) + e_hat
+        #self._update_alpha(q, r, s)
+        #self.C[:] += r * np.outer(s, s)
 
-    def _update_alpha(self, q, r, s):
-        self.alpha[:] += q * s
+    #def _update_alpha(self, q, r, s):
+        #self.alpha[:] += q * s
 
-    def _update_K(self, x, y, k, k_star):
-        B = np.dot(self.L_inv[:-1, :-1], k).T
-        CC_T = k_star + np.eye(len(x)) * self.noise_var - np.dot(B, B.T)
-        diag_indices = np.diag_indices_from(CC_T)
-        CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
+    #def _update_K(self, x, y, k, k_star):
+        #B = np.dot(self.L_inv[:-1, :-1], k).T
+        #CC_T = k_star + np.eye(len(x)) * self.noise_var - np.dot(B, B.T)
+        #diag_indices = np.diag_indices_from(CC_T)
+        #CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
 
-        # FIXME refit in case of LinAlgError
-        C_inv = inv(cholesky(CC_T))
+        ## FIXME refit in case of LinAlgError
+        #C_inv = inv(cholesky(CC_T))
 
-        self.L_inv[-1:, :-1] = -np.dot(
-            np.dot(C_inv, B), self.L_inv[:-1, :-1])
-        self.L_inv[-1:, -1:] = C_inv
-        self.K_inv[:, :] = np.dot(self.L_inv.T, self.L_inv)
+        #self.L_inv[-1:, :-1] = -np.dot(
+            #np.dot(C_inv, B), self.L_inv[:-1, :-1])
+        #self.L_inv[-1:, -1:] = C_inv
+        #self.K_inv[:, :] = np.dot(self.L_inv.T, self.L_inv)
 
-    def _update_C(self, x, y, k, k_star):
-        B = np.dot(self.CL_inv[:-1, :-1], k).T
-        CC_T = k_star + np.eye(len(x)) * self.noise_var - np.dot(B, B.T)
-        diag_indices = np.diag_indices_from(CC_T)
-        CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
+    #def _update_C(self, x, y, k, k_star):
+        #B = np.dot(self.CL_inv[:-1, :-1], k).T
+        #CC_T = k_star + np.eye(len(x)) * self.noise_var - np.dot(B, B.T)
+        #diag_indices = np.diag_indices_from(CC_T)
+        #CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
 
-        # FIXME refit in case of LinAlgError
-        C_inv = inv(cholesky(CC_T))
+        ## FIXME refit in case of LinAlgError
+        #C_inv = inv(cholesky(CC_T))
 
-        self.CL_inv[-1:, :-1] = -np.dot(
-            np.dot(C_inv, B), self.L_inv[:-1, :-1])
-        self.CL_inv[-1:, -1:] = C_inv
-        self.C[:, :] = -np.dot(self.L_inv.T, self.L_inv)
+        #self.CL_inv[-1:, :-1] = -np.dot(
+            #np.dot(C_inv, B), self.L_inv[:-1, :-1])
+        #self.CL_inv[-1:, -1:] = C_inv
+        #self.C[:, :] = -np.dot(self.L_inv.T, self.L_inv)
 
     def _delete_bv(self):
-        score = np.abs(self.alpha) / np.diag(self.K_inv)
+        K_inv = np.dot(self.L_inv.T, self.L_inv)
+        C = -np.dot(self.R, self.R.T)
+
+        score = np.abs(self.alpha) / np.diag(K_inv)
         min_bv = np.argmin(score)
         self.deleted_bv.append(self.x_bv[min_bv])
 
         self._exclude_from_vec(self.x_bv, min_bv)
         self._exclude_from_vec(self.y_bv, min_bv)
         alpha_star = self._exclude_from_vec(self.alpha, min_bv)
-        Q_star, q_star = self._exclude_from_mat(self.K_inv, min_bv)
-        self._exclude_from_mat(self.L_inv, min_bv)
-        C_star, c_star = self._exclude_from_mat(self.C, min_bv)
+        Q_star, q_star = self._exclude_from_mat(K_inv, min_bv)
+        C_star, c_star = self._exclude_from_mat(C, min_bv)
 
         self.num_bv -= 1
 
         self.alpha[:] -= alpha_star / q_star * Q_star
         QQ_T = np.outer(Q_star, Q_star)
         QC_T = np.outer(Q_star, C_star)
-        self.C[:, :] += c_star / (q_star ** 2) * QQ_T - \
-            (QC_T + QC_T.T) / q_star
-        self.K_inv[:, :] -= QQ_T / q_star
-        self.L_inv[:, :] = cholesky(self.K_inv).T
-        self.CL_inv[:, :] = cholesky(-self.C).T
+        C[:-1, :-1] += c_star / (q_star ** 2) * QQ_T - (QC_T + QC_T.T) / q_star
+        K_inv[:-1, :-1] -= QQ_T / q_star
+
+        self.L_inv[:, :] = cholesky(K_inv[:-1, :-1]).T
+        self.R[:, :] = cholesky(-C[:-1, :-1]).T
 
     def _exclude_from_vec(self, vec, idx, fill_value=0):
         excluded = vec[idx]
@@ -515,6 +515,7 @@ class SparseGP(object):
         pred = np.dot(k, np.atleast_2d(self.alpha).T)
 
         if eval_MSE is not False:
+            C = -np.dot(self.R, self.R.T)
             noise_part = self.noise_var
             if eval_MSE == 'err':
                 density = gaussian_kde(self.x_bv.T)
@@ -526,14 +527,14 @@ class SparseGP(object):
                 noise_part,
                 noise_part + self.kernel.diag(
                     x, x, np.zeros(len(x)), np.zeros(len(x))) + np.einsum(
-                    'ij,jk,ki->i', k, self.C, k.T))
+                    'ij,jk,ki->i', k, C, k.T))
 
         if eval_derivatives:
             pred_derivative = np.einsum(
                 'ijk,lj->ilk', k_derivative, np.atleast_2d(self.alpha))
             if eval_MSE:
                 mse_derivative = 2 * np.einsum(
-                    'ijk,jl,li->ik', k_derivative, self.C, k.T)
+                    'ijk,jl,li->ik', k_derivative, C, k.T)
                 return pred, pred_derivative, mse, mse_derivative
             else:
                 return pred, pred_derivative
@@ -543,15 +544,14 @@ class SparseGP(object):
             return pred
 
     def calc_neg_log_likelihood(self, eval_derivative=False):
-        L_inv = cholesky(-self.C)
-        svs = np.dot(self.y_bv.T, L_inv)
+        svs = np.dot(self.y_bv.T, self.R)
         log_likelihood = -0.5 * np.dot(svs, svs.T) + \
-            np.sum(np.log(np.diag(L_inv))) - \
+            np.sum(np.log(np.diag(self.R))) - \
             0.5 * self.num_bv * np.log(2 * np.pi)
 
         if eval_derivative:
-            alpha = np.dot(svs, L_inv.T)
-            grad_weighting = np.dot(alpha.T, alpha) + self.C
+            alpha = np.dot(self.R, svs.T)
+            grad_weighting = np.dot(alpha, alpha.T) - np.dot(self.R, self.R.T)
             kernel_derivative = np.array([
                 0.5 * np.sum(np.einsum(
                     'ij,ji->i', grad_weighting, param_deriv))
