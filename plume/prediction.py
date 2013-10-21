@@ -446,41 +446,9 @@ class SparseGP(object):
             np.dot(self.R, np.dot(self.R.T, self.y_bv)))
 
     def _reduced_update(self, k, e_hat, q, r):
-        raise NotImplementedError()
-        #s = np.squeeze(np.dot(self.C, k)) + e_hat
-        #self._update_alpha(q, r, s)
-        #self.C[:] += r * np.outer(s, s)
-
-    #def _update_alpha(self, q, r, s):
-        #self.alpha[:] += q * s
-
-    #def _update_K(self, x, y, k, k_star):
-        #B = np.dot(self.L_inv[:-1, :-1], k).T
-        #CC_T = k_star + np.eye(len(x)) * self.noise_var - np.dot(B, B.T)
-        #diag_indices = np.diag_indices_from(CC_T)
-        #CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
-
-        ## FIXME refit in case of LinAlgError
-        #C_inv = inv(cholesky(CC_T))
-
-        #self.L_inv[-1:, :-1] = -np.dot(
-            #np.dot(C_inv, B), self.L_inv[:-1, :-1])
-        #self.L_inv[-1:, -1:] = C_inv
-        #self.K_inv[:, :] = np.dot(self.L_inv.T, self.L_inv)
-
-    #def _update_C(self, x, y, k, k_star):
-        #B = np.dot(self.CL_inv[:-1, :-1], k).T
-        #CC_T = k_star + np.eye(len(x)) * self.noise_var - np.dot(B, B.T)
-        #diag_indices = np.diag_indices_from(CC_T)
-        #CC_T[diag_indices] = np.maximum(self.noise_var, CC_T[diag_indices])
-
-        ## FIXME refit in case of LinAlgError
-        #C_inv = inv(cholesky(CC_T))
-
-        #self.CL_inv[-1:, :-1] = -np.dot(
-            #np.dot(C_inv, B), self.L_inv[:-1, :-1])
-        #self.CL_inv[-1:, -1:] = C_inv
-        #self.C[:, :] = -np.dot(self.L_inv.T, self.L_inv)
+        s = np.squeeze(np.dot(self.C, k)) + e_hat
+        self._alpha_cor[:self.num_bv] += q * s
+        self._C_cor[:self.num_bv, :self.num_bv] += r * np.outer(s, s)
 
     def _delete_bv(self):
         K_inv = self.K_inv
@@ -572,6 +540,7 @@ class SparseGP(object):
 
     def calc_neg_log_likelihood(self, eval_derivative=False):
         svs = np.dot(self.y_bv.T, self.R)
+        # FIXME R not triangular anymore
         log_likelihood = -0.5 * np.dot(svs, svs.T) + \
             np.sum(np.log(np.diag(self.R))) - \
             0.5 * self.num_bv * np.log(2 * np.pi)
