@@ -2,7 +2,7 @@ import logging
 import warnings
 
 import numpy as np
-from numpy.linalg import cholesky, inv, linalg
+from numpy.linalg import cholesky, det, inv, linalg
 from scipy.optimize import fmin_l_bfgs_b
 from scipy.stats import gaussian_kde
 
@@ -562,9 +562,8 @@ class SparseGP(object):
 
     def calc_neg_log_likelihood(self, eval_derivative=False):
         svs = np.dot(self.y_bv.T, self.R)
-        # FIXME R not triangular anymore
         log_likelihood = -0.5 * np.dot(svs, svs.T) + \
-            np.sum(np.log(np.diag(self.R))) - \
+            np.sum(np.log(np.diag(cholesky(-self.C)))) - \
             0.5 * self.num_bv * np.log(2 * np.pi)
 
         if eval_derivative:
