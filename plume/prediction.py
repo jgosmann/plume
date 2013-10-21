@@ -493,8 +493,12 @@ class SparseGP(object):
         self._exclude_from_vec(self.x_bv, min_bv)
         self._exclude_from_vec(self.y_bv, min_bv)
         alpha_star = self._exclude_from_vec(self.alpha, min_bv)
-        Q_star, q_star = self._exclude_from_mat(K_inv, min_bv)
-        C_star, c_star = self._exclude_from_mat(C, min_bv)
+        self._exclude_from_vec(self._alpha_cor, min_bv)
+        Q_star, q_star = self._extract_from_mat(K_inv, min_bv)
+        C_star, c_star = self._extract_from_mat(C, min_bv)
+        self._remove_from_mat(self._C_cor[:self.num_bv, :self.num_bv], min_bv)
+        self._remove_from_mat(
+            self._K_inv_cor[:self.num_bv, :self.num_bv], min_bv)
 
         self._L_inv[:, min_bv:-1] = self._L_inv[:, min_bv + 1:]
         self._R[min_bv:-1, :] = self._R[min_bv + 1:, :]
@@ -510,25 +514,24 @@ class SparseGP(object):
             c_star / (q_star ** 2) * QQ_T - (QC_T + QC_T.T) / q_star
         self._K_inv_cor[:self.num_bv, :self.num_bv] -= QQ_T / q_star
 
-        #self.L_inv[:, :] = cholesky(K_inv).T
-        #self.R[:, :] = cholesky(-C)
-
     def _exclude_from_vec(self, vec, idx, fill_value=0):
         excluded = vec[idx]
         vec[idx:-1] = vec[idx + 1:]
         vec[-1] = fill_value
         return excluded
 
-    def _exclude_from_mat(self, mat, idx, fill_value=0):
+    def _extract_from_mat(self, mat, idx):
         excluded_diag = mat[idx, idx]
         excluded_vec = np.empty(len(mat) - 1)
         excluded_vec[:idx] = mat[idx, :idx]
         excluded_vec[idx:] = mat[idx, idx + 1:]
+        return excluded_vec, excluded_diag
+
+    def _remove_from_mat(self, mat, idx, fill_value=0.0):
         mat[idx:-1, :] = mat[idx + 1:, :]
         mat[:, idx:-1] = mat[:, idx + 1:]
         mat[-1, :] = fill_value
         mat[:, -1] = fill_value
-        return excluded_vec, excluded_diag
 
     def predict(self, x, eval_MSE=False, eval_derivatives=False):
         if eval_derivatives:
