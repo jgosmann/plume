@@ -2,7 +2,7 @@ import logging
 import warnings
 
 import numpy as np
-from numpy.linalg import cholesky, det, inv, linalg
+from numpy.linalg import cholesky, inv, linalg
 from scipy.optimize import fmin_l_bfgs_b
 from scipy.stats import gaussian_kde
 
