@@ -336,15 +336,24 @@ class SparseGP(object):
         self._x_bv = None
         self._y_bv = None
         self._alpha = np.zeros(max_bv + 1)
+        self._alpha_cor = np.zeros(max_bv + 1)
         self._L_inv = np.zeros((max_bv + 1, max_bv + 1))
+        self._K_inv_cor = np.zeros((max_bv + 1, max_bv + 1))
         self._R = np.zeros((max_bv + 1, max_bv + 1))
+        self._C_cor = np.zeros((max_bv + 1, max_bv + 1))
         self.updates = 0
 
     x_bv = property(lambda self: self._x_bv[:self.num_bv])
     y_bv = property(lambda self: self._y_bv[:self.num_bv])
     alpha = property(lambda self: self._alpha[:self.num_bv])
     L_inv = property(lambda self: self._L_inv[:self.num_bv, :self.num_bv])
+    K_inv = property(
+        lambda self: np.dot(self.L_inv.T, self.L_inv) +
+        self._K_inv_cor[:self.num_bv, :self.num_bv])
     R = property(lambda self: self._R[:self.num_bv, :self.num_bv])
+    C = property(
+        lambda self: np.dot(self.R, self.R.T) +
+        self._C_cor[:self.num_bv, :self.num_bv])
 
     trained = property(lambda self: self.updates > 0)
 
@@ -355,8 +364,11 @@ class SparseGP(object):
         self.deleted_bv = GrowingArray(
             (x_train.shape[1],), expected_rows=2 * self.max_bv)
         self._alpha.fill(0.0)
+        self._alpha_cor.fill(0.0)
         self._L_inv.fill(0.0)
+        self._K_inv_cor.fill(0.0)
         self._R.fill(0.0)
+        self._C_cor.fill(0.0)
 
         if len(x_train) > self.max_bv:
             more_x = x_train[self.max_bv:, :]
@@ -374,7 +386,7 @@ class SparseGP(object):
             np.eye(len(x_train)) * self.noise_var))
         self.R[:, :] = self.L_inv.T
         K_inv = np.dot(self.L_inv.T, self.L_inv)
-        self.alpha[:] = np.squeeze(np.dot(K_inv, y_train))
+        self._alpha[:self.num_bv] = np.squeeze(np.dot(K_inv, y_train))
 
         self.updates += 1
 
@@ -388,6 +400,9 @@ class SparseGP(object):
             for x, y in zip(x_train, y_train):
                 self.add_single_observation(x, y)
             self.updates += 1
+            num_delete = self.num_bv - self.max_bv
+            if num_delete > 0:
+                self._delete_bv(num_delete)
 
     def add_single_observation(self, x, y):
         x = np.atleast_2d(x)
@@ -410,8 +425,6 @@ class SparseGP(object):
             self._reduced_update(k, e_hat, q, r)
         else:
             self._extend_basis(x, y, k, q, r)
-            if self.num_bv > self.max_bv:
-                self._delete_bv()
 
     def _extend_basis(self, x, y, k, q, r):
         C = -np.dot(self.R, self.R.T)
@@ -425,7 +438,8 @@ class SparseGP(object):
         self.R[-1, -1] = sqr_r
 
         self.L_inv[-1, :] = self.R[:, -1]
-        self.alpha[:] = np.squeeze(np.dot(self.R, np.dot(self.R.T, self.y_bv)))
+        self._alpha[:self.num_bv] = self._alpha_cor[:self.num_bv] + np.squeeze(
+            np.dot(self.R, np.dot(self.R.T, self.y_bv)))
 
     def _reduced_update(self, k, e_hat, q, r):
         raise NotImplementedError()
@@ -464,30 +478,33 @@ class SparseGP(object):
         #self.CL_inv[-1:, -1:] = C_inv
         #self.C[:, :] = -np.dot(self.L_inv.T, self.L_inv)
 
-    def _delete_bv(self):
+    def _delete_bv(self, num):
         K_inv = np.dot(self.L_inv.T, self.L_inv)
         C = -np.dot(self.R, self.R.T)
 
-        score = np.abs(self.alpha) / np.diag(K_inv)
-        min_bv = np.argmin(score)
-        self.deleted_bv.append(self.x_bv[min_bv])
+        for i in xrange(num):
+            score = np.abs(self.alpha) / np.diag(K_inv)
+            min_bv = np.argmin(score)
+            self.deleted_bv.append(self.x_bv[min_bv])
 
-        self._exclude_from_vec(self.x_bv, min_bv)
-        self._exclude_from_vec(self.y_bv, min_bv)
-        alpha_star = self._exclude_from_vec(self.alpha, min_bv)
-        Q_star, q_star = self._exclude_from_mat(K_inv, min_bv)
-        C_star, c_star = self._exclude_from_mat(C, min_bv)
+            self._exclude_from_vec(self.x_bv, min_bv)
+            self._exclude_from_vec(self.y_bv, min_bv)
+            alpha_star = self._exclude_from_vec(self.alpha, min_bv)
+            Q_star, q_star = self._exclude_from_mat(K_inv, min_bv)
+            C_star, c_star = self._exclude_from_mat(C, min_bv)
 
-        self.num_bv -= 1
+            K_inv = K_inv[:-1, :-1]
+            C = C[:-1, :-1]
+            self.num_bv -= 1
 
-        self.alpha[:] -= alpha_star / q_star * Q_star
-        QQ_T = np.outer(Q_star, Q_star)
-        QC_T = np.outer(Q_star, C_star)
-        C[:-1, :-1] += c_star / (q_star ** 2) * QQ_T - (QC_T + QC_T.T) / q_star
-        K_inv[:-1, :-1] -= QQ_T / q_star
+            self.alpha[:] -= alpha_star / q_star * Q_star
+            QQ_T = np.outer(Q_star, Q_star)
+            QC_T = np.outer(Q_star, C_star)
+            C += c_star / (q_star ** 2) * QQ_T - (QC_T + QC_T.T) / q_star
+            K_inv -= QQ_T / q_star
 
-        self.L_inv[:, :] = cholesky(K_inv[:-1, :-1]).T
-        self.R[:, :] = cholesky(-C[:-1, :-1]).T
+        self.L_inv[:, :] = cholesky(K_inv).T
+        self.R[:, :] = cholesky(-C)
 
     def _exclude_from_vec(self, vec, idx, fill_value=0):
         excluded = vec[idx]
