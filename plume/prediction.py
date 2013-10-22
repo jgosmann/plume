@@ -455,14 +455,14 @@ class SparseGP(object):
 
         self.R[:-1, -1] = sqr_r * np.squeeze(np.dot(C, k))
         self.R[-1, -1] = sqr_r
-
         self.L_inv[-1, :] = self.R[:, -1]
+        self._invalidate_cache()
+
         # FIXME using K_inv here might be wrong could also be RR.T or -C
         # not completely sure whats right here
         self._alpha[:self.num_bv] = self._alpha_cor[:self.num_bv] + np.squeeze(
             np.dot(self.K_inv, self.y_bv))
 
-        self._invalidate_cache()
 
     def _reduced_update(self, k, e_hat, q, r):
         raise NotImplementedError()
