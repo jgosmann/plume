@@ -472,7 +472,7 @@ class SparseGP(object):
 
         uncor_K_inv_line = np.dot(self.L_inv.T, self.L_inv[:, min_bv])
         Q_star = uncor_K_inv_line + self.K_inv_cor[min_bv, :]
-        C_star = uncor_K_inv_line + self.C_cor[min_bv, :]
+        C_star = -uncor_K_inv_line + self.C_cor[min_bv, :]
         q_star = self._exclude_from_vec(Q_star, min_bv)
         c_star = self._exclude_from_vec(C_star, min_bv)
         Q_star = Q_star[:-1]
