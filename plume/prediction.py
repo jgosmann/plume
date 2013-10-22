@@ -491,17 +491,17 @@ class SparseGP(object):
         self._R[-1, :] = 0.0
         self.num_bv -= 1
 
-        #self.alpha[:] -= alpha_star / q_star * Q_star
-        #self._alpha_cor[:self.num_bv] -= alpha_star / q_star * Q_star
-        #QQ_T = np.outer(Q_star, Q_star)
-        #QC_T = np.outer(Q_star, C_star)
-        #C_cor = c_star / (q_star ** 2) * QQ_T - (QC_T + QC_T.T) / q_star
-        #K_inv_cor = -QQ_T / q_star
-        #self._C_cor[:self.num_bv, :self.num_bv] += C_cor
-        #self._K_inv_cor[:self.num_bv, :self.num_bv] += K_inv_cor
+        self.alpha[:] -= alpha_star / q_star * Q_star
+        self._alpha_cor[:self.num_bv] -= alpha_star / q_star * Q_star
+        QQ_T = np.outer(Q_star, Q_star)
+        QC_T = np.outer(Q_star, C_star)
+        C_cor = c_star / (q_star ** 2) * QQ_T - (QC_T + QC_T.T) / q_star
+        K_inv_cor = -QQ_T / q_star
+        self._C_cor[:self.num_bv, :self.num_bv] += C_cor
+        self._K_inv_cor[:self.num_bv, :self.num_bv] += K_inv_cor
 
-        self._C_cache = C[:-1, :-1]  # + C_cor
-        self._K_inv_cache = K_inv[:-1, :-1]  # + K_inv_cor
+        self._C_cache = C[:-1, :-1] + C_cor
+        self._K_inv_cache = K_inv[:-1, :-1] + K_inv_cor
 
     def _exclude_from_vec(self, vec, idx, fill_value=0):
         excluded = vec[idx]
