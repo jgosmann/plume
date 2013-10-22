@@ -508,7 +508,6 @@ class SparseGP(object):
         self._alpha_cor[:self.num_bv] += \
             (Q_star * c_star / q_star - C_star) * (y - np.dot(
                 -Q_star / q_star, self.y_bv))
-        self._alpha_cor[:self.num_bv] -= alpha_star / q_star * Q_star
 
     def _exclude_from_vec(self, vec, idx, fill_value=0):
         excluded = vec[idx]
