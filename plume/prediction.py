@@ -457,15 +457,18 @@ class SparseGP(object):
         self.R[-1, -1] = sqr_r
 
         self.L_inv[-1, :] = self.R[:, -1]
+        # FIXME using K_inv here might be wrong could also be RR.T or -C
+        # not completely sure whats right here
         self._alpha[:self.num_bv] = self._alpha_cor[:self.num_bv] + np.squeeze(
-            np.dot(self.R, np.dot(self.R.T, self.y_bv)))
+            np.dot(self.K_inv, self.y_bv))
 
         self._invalidate_cache()
 
     def _reduced_update(self, k, e_hat, q, r):
-        s = np.squeeze(np.dot(self.C, k)) + e_hat
-        self._alpha_cor[:self.num_bv] += q * s
-        self._C_cor[:self.num_bv, :self.num_bv] += r * np.outer(s, s)
+        raise NotImplementedError()
+        #s = np.squeeze(np.dot(self.C, k)) + e_hat
+        #self._alpha_cor[:self.num_bv] += q * s
+        #self._C_cor[:self.num_bv, :self.num_bv] += r * np.outer(s, s)
 
     def _delete_bv(self):
         K_inv = self.K_inv
@@ -476,7 +479,7 @@ class SparseGP(object):
         self.deleted_bv.append(self.x_bv[min_bv])
 
         self._exclude_from_vec(self.x_bv, min_bv)
-        self._exclude_from_vec(self.y_bv, min_bv)
+        y = self._exclude_from_vec(self.y_bv, min_bv)
         alpha_star = self._exclude_from_vec(self.alpha, min_bv)
         self._exclude_from_vec(self._alpha_cor, min_bv)
         Q_star, q_star = self._extract_from_mat(K_inv, min_bv)
@@ -491,8 +494,6 @@ class SparseGP(object):
         self._R[-1, :] = 0.0
         self.num_bv -= 1
 
-        self.alpha[:] -= alpha_star / q_star * Q_star
-        self._alpha_cor[:self.num_bv] -= alpha_star / q_star * Q_star
         QQ_T = np.outer(Q_star, Q_star)
         QC_T = np.outer(Q_star, C_star)
         C_cor = c_star / (q_star ** 2) * QQ_T - (QC_T + QC_T.T) / q_star
@@ -502,6 +503,12 @@ class SparseGP(object):
 
         self._C_cache = C[:-1, :-1] + C_cor
         self._K_inv_cache = K_inv[:-1, :-1] + K_inv_cor
+
+        self.alpha[:] -= alpha_star / q_star * Q_star
+        self._alpha_cor[:self.num_bv] += \
+            (Q_star * c_star / q_star - C_star) * (y - np.dot(
+                -Q_star / q_star, self.y_bv))
+        self._alpha_cor[:self.num_bv] -= alpha_star / q_star * Q_star
 
     def _exclude_from_vec(self, vec, idx, fill_value=0):
         excluded = vec[idx]
