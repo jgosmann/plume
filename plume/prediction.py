@@ -342,7 +342,6 @@ class SparseGP(object):
         self._alpha_cor = np.zeros(max_bv + 1)
         self._L_inv = np.zeros((max_v, max_bv + 1))
         self._K_inv_cor = np.zeros((max_bv + 1, max_bv + 1))
-        self._R = np.zeros((max_bv + 1, max_v))
         self._C_cor = np.zeros((max_bv + 1, max_bv + 1))
         self.updates = 0
 
@@ -350,29 +349,21 @@ class SparseGP(object):
     y_bv = property(lambda self: self._y_bv[:self.num_bv])
     alpha = property(lambda self: self._alpha[:self.num_bv])
     L_inv = property(lambda self: self._L_inv[:self.num_v, :self.num_bv])
-    R = property(lambda self: self._R[:self.num_bv, :self.num_v])
+    K_inv_cor = property(
+        lambda self: self._K_inv_cor[:self.num_bv, :self.num_bv])
+    C_cor = property(lambda self: self._C_cor[:self.num_bv, :self.num_bv])
 
     trained = property(lambda self: self.updates > 0)
 
-    def get_C(self):
-        if self._C_cache is None:
-            self._C_cache = -np.dot(
-                self.R, self.R.T) + self._C_cor[:self.num_bv, :self.num_bv]
-        return self._C_cache
+    def dot_K_inv(self, x):
+        return np.squeeze(
+            np.dot(self.L_inv.T, np.dot(self.L_inv, x)) +
+            np.dot(self.K_inv_cor, x))
 
-    C = property(get_C)
-
-    def get_K_inv(self):
-        if self._K_inv_cache is None:
-            self._K_inv_cache = np.dot(self.L_inv.T, self.L_inv) + \
-                self._K_inv_cor[:self.num_bv, :self.num_bv]
-        return self._K_inv_cache
-
-    K_inv = property(get_K_inv)
-
-    def _invalidate_cache(self):
-        self._C_cache = None
-        self._K_inv_cache = None
+    def dot_C(self, x):
+        return np.squeeze(
+            -np.dot(self.L_inv.T, np.dot(self.L_inv, x)) +
+            np.dot(self.C_cor, x))
 
     def fit(self, x_train, y_train):
         self.num_bv = min(len(x_train), self.max_bv)
@@ -385,9 +376,7 @@ class SparseGP(object):
         self._alpha_cor.fill(0.0)
         self._L_inv.fill(0.0)
         self._K_inv_cor.fill(0.0)
-        self._R.fill(0.0)
         self._C_cor.fill(0.0)
-        self._invalidate_cache()
 
         if len(x_train) > self.max_bv:
             more_x = x_train[self.max_bv:, :]
@@ -403,9 +392,7 @@ class SparseGP(object):
         self.L_inv[:, :] = inv(cholesky(
             self.kernel(x_train, x_train, y_train, y_train) +
             np.eye(len(x_train)) * self.noise_var))
-        self.R[:, :] = self.L_inv.T
-        K_inv = np.dot(self.L_inv.T, self.L_inv)
-        self._alpha[:self.num_bv] = np.squeeze(np.dot(K_inv, y_train))
+        self._alpha[:self.num_bv] = self.dot_K_inv(y_train)
 
         self.updates += 1
 
@@ -425,13 +412,16 @@ class SparseGP(object):
         k = self.kernel(self.x_bv, x, self.y_bv.T, y)
         k_star = np.squeeze(self.kernel(x, x, y, y))
 
-        K_inv = self.K_inv
-        gamma = np.squeeze(k_star - np.einsum('ij,jk,kl', k.T, K_inv, k))
-        e_hat = np.atleast_1d(np.squeeze(np.dot(K_inv, k)))
+        # FIXME
+        svs = np.dot(self.L_inv, k)
+        svs_sq = np.dot(svs.T, svs)
+        gamma = np.squeeze(k_star - svs_sq - np.einsum(
+            'ij,jk,kl', k.T, self.K_inv_cor, k))
+        e_hat = np.atleast_1d(np.squeeze(np.dot(self.L_inv.T, svs)))
 
         if self.num_bv > 0:
-            sigma_x_sq = np.squeeze(self.noise_var + np.einsum(
-                'ij,jk,kl->il', k.T, self.C, k) + k_star)
+            sigma_x_sq = np.squeeze(self.noise_var - svs_sq + np.einsum(
+                'ij,jk,kl->il', k.T, self.C_cor, k) + k_star)
         else:
             sigma_x_sq = self.noise_var + k_star
         q = (y - np.dot(self.alpha, k)) / sigma_x_sq
@@ -440,29 +430,26 @@ class SparseGP(object):
         if gamma < self.tolerance:
             self._reduced_update(k, e_hat, q, r)
         else:
-            self._extend_basis(x, y, k, q, r)
+            self._extend_basis(x, y, k, r)
             if self.num_bv > self.max_bv:
                 self._delete_bv()
 
-    def _extend_basis(self, x, y, k, q, r):
-        C = self.C
+    def _extend_basis(self, x, y, k, r):
         sqr_r = np.sqrt(-r)
+        s = sqr_r * self.dot_C(k)
 
         self.num_bv += 1
         self.num_v += 1
         self.x_bv[-1] = x
         self.y_bv[-1] = y
 
-        self.R[:-1, -1] = sqr_r * np.squeeze(np.dot(C, k))
-        self.R[-1, -1] = sqr_r
-        self.L_inv[-1, :] = self.R[:, -1]
-        self._invalidate_cache()
+        self.L_inv[-1, :-1] = s
+        self.L_inv[-1, -1] = sqr_r
 
         # FIXME using K_inv here might be wrong could also be RR.T or -C
         # not completely sure whats right here
-        self._alpha[:self.num_bv] = self._alpha_cor[:self.num_bv] + np.squeeze(
-            np.dot(self.K_inv, self.y_bv))
-
+        self._alpha[:self.num_bv] = self._alpha_cor[:self.num_bv] + \
+            self.dot_K_inv(self.y_bv)
 
     def _reduced_update(self, k, e_hat, q, r):
         raise NotImplementedError()
@@ -471,10 +458,10 @@ class SparseGP(object):
         #self._C_cor[:self.num_bv, :self.num_bv] += r * np.outer(s, s)
 
     def _delete_bv(self):
-        K_inv = self.K_inv
-        C = self.C
+        diag_K_inv = np.einsum('ij,ji->i', self.L_inv.T, self.L_inv) + np.diag(
+            self.K_inv_cor)
 
-        score = np.abs(self.alpha) / np.diag(K_inv)
+        score = np.abs(self.alpha) / diag_K_inv
         min_bv = np.argmin(score)
         self.deleted_bv.append(self.x_bv[min_bv])
 
@@ -482,16 +469,19 @@ class SparseGP(object):
         y = self._exclude_from_vec(self.y_bv, min_bv)
         alpha_star = self._exclude_from_vec(self.alpha, min_bv)
         self._exclude_from_vec(self._alpha_cor, min_bv)
-        Q_star, q_star = self._extract_from_mat(K_inv, min_bv)
-        C_star, c_star = self._extract_from_mat(C, min_bv)
-        self._remove_from_mat(self._C_cor[:self.num_bv, :self.num_bv], min_bv)
-        self._remove_from_mat(
-            self._K_inv_cor[:self.num_bv, :self.num_bv], min_bv)
+
+        uncor_K_inv_line = np.dot(self.L_inv.T, self.L_inv[:, min_bv])
+        Q_star = uncor_K_inv_line + self.K_inv_cor[min_bv, :]
+        C_star = uncor_K_inv_line + self.C_cor[min_bv, :]
+        q_star = self._exclude_from_vec(Q_star, min_bv)
+        c_star = self._exclude_from_vec(C_star, min_bv)
+        Q_star = Q_star[:-1]
+        C_star = C_star[:-1]
+        self._remove_from_mat(self.C_cor, min_bv)
+        self._remove_from_mat(self.K_inv_cor, min_bv)
 
         self._L_inv[:, min_bv:-1] = self._L_inv[:, min_bv + 1:]
-        self._R[min_bv:-1, :] = self._R[min_bv + 1:, :]
         self._L_inv[:, -1] = 0.0
-        self._R[-1, :] = 0.0
         self.num_bv -= 1
 
         QQ_T = np.outer(Q_star, Q_star)
@@ -501,13 +491,10 @@ class SparseGP(object):
         self._C_cor[:self.num_bv, :self.num_bv] += C_cor
         self._K_inv_cor[:self.num_bv, :self.num_bv] += K_inv_cor
 
-        self._C_cache = C[:-1, :-1] + C_cor
-        self._K_inv_cache = K_inv[:-1, :-1] + K_inv_cor
-
         self.alpha[:] -= alpha_star / q_star * Q_star
         self._alpha_cor[:self.num_bv] += \
-            (Q_star * c_star / q_star - C_star) * (y - np.dot(
-                -Q_star / q_star, self.y_bv))
+            (Q_star * c_star / q_star - C_star) * (y - np.squeeze(np.dot(
+                -Q_star / q_star, self.y_bv)))
 
     def _exclude_from_vec(self, vec, idx, fill_value=0):
         excluded = vec[idx]
@@ -538,7 +525,7 @@ class SparseGP(object):
         pred = np.dot(k, np.atleast_2d(self.alpha).T)
 
         if eval_MSE is not False:
-            C = -np.dot(self.R, self.R.T)
+            svs = np.dot(self.L_inv, k.T)
             noise_part = self.noise_var
             if eval_MSE == 'err':
                 density = gaussian_kde(self.x_bv.T)
@@ -549,15 +536,18 @@ class SparseGP(object):
             mse = np.maximum(
                 noise_part,
                 noise_part + self.kernel.diag(
-                    x, x, np.zeros(len(x)), np.zeros(len(x))) + np.einsum(
-                    'ij,jk,ki->i', k, C, k.T))
+                    x, x, np.zeros(len(x)), np.zeros(len(x))) -
+                np.einsum('ij,ji->i', svs.T, svs) +
+                np.einsum('ij,jk,ki->i', k, self.C_cor, k.T))
 
         if eval_derivatives:
             pred_derivative = np.einsum(
                 'ijk,lj->ilk', k_derivative, np.atleast_2d(self.alpha))
             if eval_MSE:
-                mse_derivative = 2 * np.einsum(
-                    'ijk,jl,li->ik', k_derivative, C, k.T)
+                mse_derivative = -2 * np.einsum(
+                    'ijk,jl,li->ik', k_derivative, self.L_inv.T, svs) + \
+                    2 * np.einsum(
+                        'ijk,jl,li->ik', k_derivative, self.C_cor, k.T)
                 return pred, pred_derivative, mse, mse_derivative
             else:
                 return pred, pred_derivative
@@ -567,14 +557,15 @@ class SparseGP(object):
             return pred
 
     def calc_neg_log_likelihood(self, eval_derivative=False):
-        svs = np.dot(self.y_bv.T, self.R)
-        log_likelihood = -0.5 * np.dot(svs, svs.T) + \
-            np.sum(np.log(np.diag(cholesky(-self.C)))) - \
+        C = -np.dot(self.L_inv.T, self.L_inv) + self.C_cor
+        log_likelihood = 0.5 * np.einsum(
+            'ij,jk,kl', self.y_bv.T, C, self.y_bv) + \
+            np.sum(np.log(np.diag(cholesky(-C)))) - \
             0.5 * self.num_bv * np.log(2 * np.pi)
 
         if eval_derivative:
-            alpha = np.dot(self.R, svs.T)
-            grad_weighting = np.dot(alpha, alpha.T) - np.dot(self.R, self.R.T)
+            alpha = self.dot_C(self.y_bv)
+            grad_weighting = np.outer(alpha, alpha) + C
             kernel_derivative = np.array([
                 0.5 * np.sum(np.einsum(
                     'ij,ji->i', grad_weighting, param_deriv))
