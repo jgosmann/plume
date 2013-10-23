@@ -117,7 +117,7 @@ def do_simulation_run(trial, output_filename, conf, client):
                 '/', 'exception', tables.ObjectAtom(),
                 title='Exception which was raised.')
             err_tbl.append(err)
-            raise err
+            raise
         finally:
             if conf['full_record']:
                 store_obj(fileh, fileh.createGroup('/', 'gp'), predictor)
@@ -205,7 +205,7 @@ class Plume(QRSimApplication):
                     args.output_dir[0], args.output[0] + '.%i.h5' % i)
                 do_simulation_run(i, output_filename, conf, client)
             except:
-                logger.exception('Repeat failed.')
+                logger.exception('Repeat failed.', exc_info=True)
                 clean = False
         return clean
 
