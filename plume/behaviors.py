@@ -233,7 +233,10 @@ class DUCB(DUCBBased):
 
     def _mse_scaling(self):
         if self.mse_scaling == 'auto':
-            return self.kappa * self.predictor.y_bv.max()
+            if hasattr(self.predictor, 'y_bv'):
+                return self.kappa * self.predictor.y_bv.max()
+            else:
+                return self.kappa * self.predictor.y_train.data.max()
         else:
             return self.kappa * self.mse_scaling
 
