@@ -248,34 +248,16 @@ class PDUCB(DUCBBased):
 
     def _eval_fn(self, common_terms, x, noisy_states):
         pred, unused, mse, unused, sq_dist = common_terms
-        if self.predictor.deleted_bv.rows > 0:
-            density = np.mean(self.predictor.kernel(
-                np.atleast_2d(x), self.predictor.deleted_bv.data), axis=1)
-        else:
-            density = np.zeros_like(mse)
         ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
             self._mse_scaling() * np.sqrt(mse)[:, None] + \
-            (-1) * self._mse_scaling() * np.sqrt(density)[:, None] + \
             self.gamma * sq_dist
         return np.squeeze(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
         pred, pred_derivative, mse, mse_derivative, sq_dist = common_terms
-        if self.predictor.deleted_bv.rows > 0:
-            density, dender = self.predictor.kernel(
-                np.atleast_2d(x), self.predictor.deleted_bv.data,
-                eval_derivative=True)
-            density = np.mean(density, axis=1)
-            dender = np.mean(dender, axis=1)
-        else:
-            density = np.zeros_like(mse)
-            dender = np.zeros_like(mse_derivative)
-        # FIXME density might be zero!
         ucb_derivative = pred_derivative / (pred + self.epsilon) + \
             self._mse_scaling() * mse_derivative * 0.5 / np.sqrt(
                 mse)[:, None] + \
-            (-1) * self._mse_scaling() * dender * 0.5 / np.sqrt(
-                density)[:, None] + \
             self.gamma * 2 * np.sqrt(sq_dist)
         return np.squeeze(ucb_derivative)
 
