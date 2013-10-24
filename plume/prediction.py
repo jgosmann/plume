@@ -547,8 +547,18 @@ class OnlineGP(object):
         self.x_train = self._create_data_array(np.asarray(x_train))
         self.y_train = self._create_data_array(np.asarray(y_train))
         self.L_inv = Growing2dArray(expected_rows=self.expected_samples)
+        self.proj_y = GrowingArray(
+            y_train.shape[1:], expected_rows=self.expected_samples)
+        self.alpha = GrowingArray(
+            y_train.shape[1:], expected_rows=self.expected_samples)
         self._refit()
         self.updates += 1
+
+    def _create_data_array(self, initial_data):
+        growing_array = GrowingArray(
+            initial_data.shape[1:], expected_rows=self.expected_samples)
+        growing_array.extend(initial_data)
+        return growing_array
 
     def _refit(self):
         self.L_inv.enlarge_by(len(self.x_train.data) - len(self.L_inv.data))
@@ -557,13 +567,7 @@ class OnlineGP(object):
                 self.x_train.data, self.x_train.data,
                 self.y_train.data, self.y_train.data) +
             np.eye(len(self.x_train.data)) * self.noise_var))
-        self.K_inv = np.dot(self.L_inv.data.T, self.L_inv.data)
-
-    def _create_data_array(self, initial_data):
-        growing_array = GrowingArray(
-            initial_data.shape[1:], expected_rows=self.expected_samples)
-        growing_array.extend(initial_data)
-        return growing_array
+        self._update_proj_y_and_alpha()
 
     def predict(self, x, eval_MSE=False, eval_derivatives=False):
         if eval_derivatives:
@@ -574,22 +578,22 @@ class OnlineGP(object):
             K_new_vs_old = self.kernel(
                 x, self.x_train.data, np.zeros(len(x)), self.y_train.data)
 
-        svs = np.dot(self.K_inv, self.y_train.data)
-        pred = np.dot(K_new_vs_old, svs)
+        pred = np.dot(K_new_vs_old, self.alpha.data)
         if eval_MSE:
-            mse_svs = np.dot(self.K_inv, K_new_vs_old.T)
+            mse_proj = np.dot(self.L_inv.data, K_new_vs_old.T)
             mse = np.maximum(
                 self.noise_var,
                 self.noise_var + self.kernel.diag(
                     x, x, np.zeros(len(x)), np.zeros(len(x))) - np.einsum(
-                    'ij,ji->i', K_new_vs_old, mse_svs))
+                    'ij,ji->i', mse_proj.T, mse_proj))
 
         if eval_derivatives:
             pred_derivative = np.einsum(
-                'ijk,jl->ilk', K_new_vs_old_derivative, svs)
+                'ijk,jl->ilk', K_new_vs_old_derivative, self.alpha.data)
             if eval_MSE:
                 mse_derivative = -2 * np.einsum(
-                    'ijk,ji->ik', K_new_vs_old_derivative, mse_svs)
+                    'ijk,jl,li->ik', K_new_vs_old_derivative,
+                    self.L_inv.data.T, mse_proj)
                 return pred, pred_derivative, mse, mse_derivative
             else:
                 return pred, pred_derivative
@@ -633,7 +637,13 @@ class OnlineGP(object):
         self.L_inv.data[l:, :l] = -np.dot(
             np.dot(C_inv, B), self.L_inv.data[:l, :l])
         self.L_inv.data[l:, l:] = C_inv
-        self.K_inv = np.dot(self.L_inv.data.T, self.L_inv.data)
+        self._update_proj_y_and_alpha()
+
+    def _update_proj_y_and_alpha(self):
+        self.proj_y.set_size(len(self.y_train.data))
+        np.dot(self.L_inv.data, self.y_train.data, out=self.proj_y.data)
+        self.alpha.set_size(len(self.y_train.data))
+        np.dot(self.L_inv.data.T, self.proj_y.data, out=self.alpha.data)
 
     def _jitter_cholesky(self, A):
         try:
@@ -655,14 +665,15 @@ class OnlineGP(object):
             'Singular matrix despite jitter of {}.'.format(jitter))
 
     def calc_neg_log_likelihood(self, eval_derivative=False):
-        svs = np.dot(self.L_inv.data, self.y_train.data)
-        log_likelihood = -0.5 * np.dot(svs.T, svs) + \
+        log_likelihood = -0.5 * np.dot(
+            self.proj_y.data.T, self.proj_y.data) + \
             np.sum(np.log(np.diag(self.L_inv.data))) - \
             0.5 * len(self.y_train.data) * np.log(2 * np.pi)
 
         if eval_derivative:
-            alpha = np.dot(self.L_inv.data.T, svs)
-            grad_weighting = np.dot(alpha, alpha.T) - self.K_inv
+            grad_weighting = np.dot(
+                self.alpha.data, self.alpha.data.T) - np.dot(
+                self.L_inv.data.T, self.L_inv.data)
             kernel_derivative = np.array([
                 0.5 * np.sum(np.einsum(
                     'ij,ji->i', grad_weighting, param_deriv))

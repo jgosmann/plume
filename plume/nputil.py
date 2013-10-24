@@ -30,6 +30,13 @@ class GrowingArray(object):
         self._data[self.rows:(self.rows + len(items))] = items
         self.rows += len(items)
 
+    # TODO this function is not tested
+    def set_size(self, num_rows):
+        d = num_rows - self._data.shape[0]
+        if d > 0:
+            self._enlarge(d)
+        self.rows = num_rows
+
     def _enlarge(self, by_at_least=1):
         shape = list(self._data.shape)
         enlarge_by = shape[0]
