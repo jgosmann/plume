@@ -643,6 +643,9 @@ class OnlineGP(object):
             return pred
 
     def add_observations(self, x, y):
+        if len(x) <= 0:
+            return
+
         if not self.trained:
             self.fit(x, y)
             return
