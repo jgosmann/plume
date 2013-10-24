@@ -445,23 +445,6 @@ class SparseGP(object):
         self.L_inv[-1, :-1] = s
         self.L_inv[-1, -1] = sqr_r
 
-        #K = self.kernel(self.x_bv, self.x_bv) + np.eye(len(self.x_bv)) * self.noise_var
-        #a = inv(cholesky(self.kernel(self.x_bv, self.x_bv) + np.eye(len(self.x_bv)) * self.noise_var))
-        #check1 = np.abs(np.eye(len(K)) - np.dot(np.dot(a.T, a), K)).max()
-        #check2 = np.abs(np.eye(len(K)) - np.dot(np.dot(self.L_inv.T, self.L_inv), K)).max()
-        #a2 = self.L_inv - a
-        #b = np.abs(a2)
-        #idx = np.unravel_index(np.argmax(b), b.shape)
-        #if len(a) > 2:
-            #xa = a[2, 1]
-            #xb = self.L_inv[2, 1]
-        #else:
-            #xa = None
-            #xb = None
-        #print b.max(), idx, check1, check2
-
-        # FIXME using K_inv here might be wrong could also be RR.T or -C
-        # not completely sure whats right here
         self._alpha[:self.num_bv] = self._alpha_cor[:self.num_bv] + \
             self.dot_K_inv(self.y_bv)
 
