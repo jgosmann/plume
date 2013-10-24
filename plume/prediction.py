@@ -424,7 +424,6 @@ class SparseGP(object):
                 'ij,jk,kl->il', k.T, self.C_cor, k) + k_star)
         else:
             sigma_x_sq = self.noise_var + k_star
-        q = (y - np.dot(self.alpha, k)) / sigma_x_sq
         r = -1.0 / sigma_x_sq
 
         if gamma < self.tolerance:
