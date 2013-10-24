@@ -372,7 +372,6 @@ class SparseGP(object):
         self._y_bv = np.empty((self.max_bv + 1, y_train.shape[1]))
         self.deleted_bv = GrowingArray(
             (x_train.shape[1],), expected_rows=2 * self.max_bv)
-        self._C.fill(0.0)
         self._alpha.fill(0.0)
         self._alpha_cor.fill(0.0)
         self._L_inv.fill(0.0)
