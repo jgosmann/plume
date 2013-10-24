@@ -130,9 +130,9 @@ class ExponentialKernel(object):
         return [lengthscale_deriv, variance_deriv]
 
     def _calc_distance(self, x1, x2):
-        return np.sqrt(-2 * np.dot(x1, x2.T) + (
+        return np.sqrt(np.maximum(0, -2 * np.dot(x1, x2.T) + (
             np.sum(np.square(x1), 1)[:, None] +
-            np.sum(np.square(x2), 1)[None, :]))
+            np.sum(np.square(x2), 1)[None, :])))
 
 
 class Matern32Kernel(object):
@@ -177,9 +177,9 @@ class Matern32Kernel(object):
         return [lengthscale_deriv, variance_deriv]
 
     def _calc_distance(self, x1, x2):
-        return np.sqrt(-2 * np.dot(x1, x2.T) + (
+        return np.sqrt(np.maximum(0, -2 * np.dot(x1, x2.T) + (
             np.sum(np.square(x1), 1)[:, None] +
-            np.sum(np.square(x2), 1)[None, :]))
+            np.sum(np.square(x2), 1)[None, :])))
 
 
 class Matern52Kernel(object):
@@ -227,9 +227,9 @@ class Matern52Kernel(object):
         return [lengthscale_deriv, variance_deriv]
 
     def _calc_distance(self, x1, x2):
-        return np.sqrt(-2 * np.dot(x1, x2.T) + (
+        return np.sqrt(np.maximum(0, -2 * np.dot(x1, x2.T) + (
             np.sum(np.square(x1), 1)[:, None] +
-            np.sum(np.square(x2), 1)[None, :]))
+            np.sum(np.square(x2), 1)[None, :])))
 
 
 class AnisotropicExponentialKernel(object):

@@ -203,9 +203,9 @@ class DUCBBased(DifferentiableFn):
             pred, mse = self.predictor.predict(
                 x, eval_MSE='err', eval_derivatives=False)
             pred_derivative = mse_derivative = None
-        sq_dist = -2 * np.dot(x, pos.T) + (
+        sq_dist = np.maximum(0, -2 * np.dot(x, pos.T) + (
             np.sum(np.square(x), 1)[:, None] +
-            np.sum(np.square(pos), 1)[None, :])
+            np.sum(np.square(pos), 1)[None, :]))
         return (pred, pred_derivative, mse, mse_derivative, sq_dist)
 
 
