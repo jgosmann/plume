@@ -270,6 +270,7 @@ class PDUCB(DUCBBased):
         else:
             density = np.zeros_like(mse)
             dender = np.zeros_like(mse_derivative)
+        # FIXME density might be zero!
         ucb_derivative = pred_derivative / (pred + self.epsilon) + \
             self._mse_scaling() * mse_derivative * 0.5 / np.sqrt(
                 mse)[:, None] + \
