@@ -386,8 +386,8 @@ class SparseGP(object):
         else:
             more_x = more_y = None
 
-        self.x_bv[:] = x_train
-        self.y_bv[:] = y_train
+        self.x_bv[:, :] = x_train
+        self.y_bv[:, :] = y_train
 
         self.L_inv[:, :] = inv(cholesky(
             self.kernel(x_train, x_train, y_train, y_train) +
