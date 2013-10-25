@@ -1,4 +1,4 @@
-experiment = Kernels
+experiment = KernelsJitter
 
 __cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Basic influence of parameters on {kernel}.' python plume/try_kernels.py -o {kernel}_{__name__!q} -c {configfile!t}"""
 configfile = conf/trykernels.conf.in
