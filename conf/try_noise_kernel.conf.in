@@ -20,7 +20,8 @@ pyseed = 3011153917
 
 lengthscales = [5]
 variances = [1e-6, 1e-5, 1e-4, 0.001, 0.01, 0.1, 0.5, 1]
-noise_var = 1e-4
+noise_var = 0.0001
+measurement_noise_var = 0.0001
 
 area = [[-140, 140], [-140, 140], [-80, 0]]
 
