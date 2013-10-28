@@ -1,7 +1,7 @@
 experiment = SingleSourceGaussianDispersionNoiseless
 task = TaskPlumeSingleSourceGaussianDispersionNoiselessDefaultControls
 
-__cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Basic parameter search and comparision of DUCB vs PDUCB' python plume/plume.py -o {__name__!q} -c {configfile!t}"""
+__cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Basic parameter search and comparision of DUCB vs PDUCB' python plume/plume.py -o {__name__!q} -c {configfile!t} -t {__repeat__} -q"""
 configfile = conf/pducb.py.in
 
 [DUCB]
