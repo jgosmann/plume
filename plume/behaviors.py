@@ -270,9 +270,8 @@ class PDUCB(DUCBBased):
                 max_val = self.predictor.y_bv.max()
             else:
                 max_val = self.predictor.y_train.data.max()
-            return self.kappa * np.log(
-                max_val + self.epsilon) - np.log(
-                self.epsilon)
+            return self.kappa * (np.log(
+                max_val + self.epsilon) - np.log(self.epsilon))
         else:
             return self.kappa * self.mse_scaling
 
