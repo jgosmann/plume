@@ -73,8 +73,8 @@ class KernelTester(object):
         test_x = x[self.conf['train_size']:]
         test_y = y[self.conf['train_size']:]
 
-        if self.conf['measurement_noise_var'] > 1e-6:
-            train_y += np.sqrt(self.conf['noise_var']) * rnd.randn(
+        if self.conf['measurement_noise_var'] > 0:
+            train_y += np.sqrt(self.conf['measurement_noise_var']) * rnd.randn(
                 len(train_y))
 
         for measure in self.measures:
