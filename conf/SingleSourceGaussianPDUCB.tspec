@@ -7,6 +7,6 @@ configfile = conf/pducb.py.in
 [PDUCB]
     acq_fn = """('behaviors', 'PDUCB', (), dict(
         kappa=kappa, mse_scaling=mse_scaling, gamma=gamma, epsilon=1e-30))"""
-    _kappa = 0.1, 0.5, 0.75, 1, 1.25, 1.5, 2
-    _mse_scaling = "'auto'", 70
+    _kappa = 0.1, 0.5, 0.75, 1.25, 1.5, 2
+    _mse_scaling = "'auto'"
     _gamma = 0, -1e-6, -1e-5, -1e-4, -1e-3, -1e-2
