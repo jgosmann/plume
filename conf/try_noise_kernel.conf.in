@@ -19,7 +19,7 @@ seedlist = [
 pyseed = 3011153917
 
 lengthscales = [5]
-variances = [1e-6, 1e-5, 1e-4, 0.001, 0.01, 0.1, 0.5, 1]
+variances = [1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 0.01, 1]
 noise_var = 0.000001
 measurement_noise_var = 0.000001
 
