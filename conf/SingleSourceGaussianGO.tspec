@@ -7,5 +7,5 @@ configfile = conf/pducb.py.in
 [GO]
     acq_fn = """('behaviors', 'GO', (), dict(gamma=gamma))"""
     kappa = 0
-    mse_scaling = 1
+    scaling = 1
     _gamma = 0, -1e-9, -1e-8, -1e-7, -1e-6, -1e-5
