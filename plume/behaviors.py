@@ -4,6 +4,7 @@ import numpy as np
 from numpy.linalg import norm
 from qrsim.tcpclient import UAVControls
 from scipy.optimize import fmin_l_bfgs_b
+from scipy.stats import norm as normdist
 
 from nputil import GrowingArray, meshgrid_nd
 
@@ -199,6 +200,7 @@ class DUCBBased(DifferentiableFn):
             pred, pred_derivative, mse, mse_derivative = \
                 self.predictor.predict(
                     x, eval_MSE='err', eval_derivatives=True)
+            pred_derivative = pred_derivative[:, 0, :]
         else:
             pred, mse = self.predictor.predict(
                 x, eval_MSE='err', eval_derivatives=False)
@@ -206,7 +208,8 @@ class DUCBBased(DifferentiableFn):
         sq_dist = np.maximum(0, -2 * np.dot(x, pos.T) + (
             np.sum(np.square(x), 1)[:, None] +
             np.sum(np.square(pos), 1)[None, :]))
-        return (pred, pred_derivative, mse, mse_derivative, sq_dist)
+        return (pred, pred_derivative, np.atleast_2d(mse).T, mse_derivative,
+                sq_dist)
 
 
 class DUCB(DUCBBased):
