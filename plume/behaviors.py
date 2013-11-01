@@ -285,6 +285,45 @@ class PDUCB(DUCBBased):
             return self.kappa * self.mse_scaling
 
 
+class GO(DUCBBased):
+    def __init__(self, predictor, gamma):
+        super(GO, self).__init__(predictor)
+        self.gamma = gamma
+
+    def _eval_fn(self, common_terms, x, noisy_states):
+        pred, unused, mse, unused, sq_dist = common_terms
+        if hasattr(self.predictor, 'y_bv'):
+            eta = self.predictor.y_bv.max()
+        else:
+            eta = self.predictor.y_train.data.max()
+
+        std = np.sqrt(mse)
+        go = eta + (pred - eta) * normdist.cdf((pred - eta) / std) + \
+            std * normdist.pdf((pred - eta) / std) + self.gamma * sq_dist
+        return np.asfortranarray(go)
+
+    def _eval_derivative(self, common_terms, x, noisy_states):
+        pred, pred_der, mse, mse_der, sq_dist = common_terms
+        if hasattr(self.predictor, 'y_bv'):
+            eta = self.predictor.y_bv.max()
+        else:
+            eta = self.predictor.y_train.data.max()
+        std = np.sqrt(mse)
+        std_der = mse_der / 2.0 / std
+        a = (pred - eta) / std
+        a_der = pred_der / std - std_der / mse * (pred - eta)
+        cdf = normdist.cdf(a)
+        cdf_der = a_der * 2.0 / np.sqrt(np.pi) * np.exp(-np.square(a))
+        pdf = normdist.pdf(a)
+        pdf_der = -a_der * a / np.sqrt(2.0 * np.pi) * np.exp(
+            -np.square(a) / 2.0)
+
+        return np.asfortranarray(
+            pred_der * cdf + pred * cdf_der - eta * cdf_der +
+            std_der * pdf + std * pdf_der + \
+            self.gamma * 2 * (x - noisy_states[0].position))
+
+
 class FollowWaypoints(object):
     def __init__(
             self, target_chooser, target_precision, velocity_controller=None):
