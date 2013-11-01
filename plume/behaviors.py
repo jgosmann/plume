@@ -221,18 +221,17 @@ class DUCB(DUCBBased):
 
     def _eval_fn(self, common_terms, x, noisy_states):
         pred, unused, mse, unused, sq_dist = common_terms
-        ucb = pred + self._mse_scaling() * mse[:, None] + \
-            self.gamma * np.sqrt(sq_dist)
-        return np.squeeze(ucb)
+        ucb = pred + self._mse_scaling() * mse + self.gamma * np.sqrt(sq_dist)
+        return np.asfortranarray(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
         x = np.atleast_2d(x)
         pos = np.atleast_2d(noisy_states[0].position)
-        unused, pred_derivative, mse, mse_derivative, dist = common_terms
+        unused, pred_derivative, mse, mse_derivative, sq_dist = common_terms
         ucb_derivative = pred_derivative + \
             self._mse_scaling() * mse_derivative + \
-            self.gamma * (x - pos) / np.sqrt(dist)
-        return np.squeeze(ucb_derivative)
+            self.gamma * (x - pos) / np.sqrt(np.maximum(sq_dist, 1e-60))
+        return np.asfortranarray(ucb_derivative)
 
     def _mse_scaling(self):
         if self.mse_scaling == 'auto':
