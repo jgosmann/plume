@@ -4,6 +4,7 @@ import numpy as np
 from numpy.linalg import norm
 from qrsim.tcpclient import UAVControls
 from scipy.optimize import fmin_l_bfgs_b
+from scipy.stats import norm as normdist
 
 from nputil import GrowingArray, meshgrid_nd
 
@@ -199,6 +200,7 @@ class DUCBBased(DifferentiableFn):
             pred, pred_derivative, mse, mse_derivative = \
                 self.predictor.predict(
                     x, eval_MSE='err', eval_derivatives=True)
+            pred_derivative = pred_derivative[:, 0, :]
         else:
             pred, mse = self.predictor.predict(
                 x, eval_MSE='err', eval_derivatives=False)
@@ -206,7 +208,8 @@ class DUCBBased(DifferentiableFn):
         sq_dist = np.maximum(0, -2 * np.dot(x, pos.T) + (
             np.sum(np.square(x), 1)[:, None] +
             np.sum(np.square(pos), 1)[None, :]))
-        return (pred, pred_derivative, mse, mse_derivative, sq_dist)
+        return (pred, pred_derivative, np.atleast_2d(mse).T, mse_derivative,
+                sq_dist)
 
 
 class DUCB(DUCBBased):
@@ -218,18 +221,17 @@ class DUCB(DUCBBased):
 
     def _eval_fn(self, common_terms, x, noisy_states):
         pred, unused, mse, unused, sq_dist = common_terms
-        ucb = pred + self._mse_scaling() * mse[:, None] + \
-            self.gamma * np.sqrt(sq_dist)
-        return np.squeeze(ucb)
+        ucb = pred + self._mse_scaling() * mse + self.gamma * np.sqrt(sq_dist)
+        return np.asfortranarray(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
         x = np.atleast_2d(x)
         pos = np.atleast_2d(noisy_states[0].position)
-        unused, pred_derivative, mse, mse_derivative, dist = common_terms
+        unused, pred_derivative, mse, mse_derivative, sq_dist = common_terms
         ucb_derivative = pred_derivative + \
             self._mse_scaling() * mse_derivative + \
-            self.gamma * (x - pos) / np.sqrt(dist)
-        return np.squeeze(ucb_derivative)
+            self.gamma * (x - pos) / np.sqrt(np.maximum(sq_dist, 1e-60))
+        return np.asfortranarray(ucb_derivative)
 
     def _mse_scaling(self):
         if self.mse_scaling == 'auto':
@@ -248,21 +250,28 @@ class PDUCB(DUCBBased):
         self.mse_scaling = mse_scaling
         self.gamma = gamma
         self.epsilon = epsilon
+        self.tau = self.epsilon
 
     def _eval_fn(self, common_terms, x, noisy_states):
         pred, unused, mse, unused, sq_dist = common_terms
-        ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
-            self._mse_scaling() * np.sqrt(mse)[:, None] + \
-            self.gamma * sq_dist
-        return np.squeeze(ucb)
+        pred = np.maximum(0, pred)
+        epred = np.exp(-pred / self.tau)
+        ucb = np.log(pred + self.epsilon) * (1 - epred) + epred * np.log(
+            self.epsilon) + self._mse_scaling() * mse + self.gamma * sq_dist
+        return np.asfortranarray(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
         pred, pred_derivative, mse, mse_derivative, sq_dist = common_terms
-        ucb_derivative = pred_derivative / (pred + self.epsilon) + \
-            self._mse_scaling() * mse_derivative * 0.5 / np.sqrt(
-                mse)[:, None] + \
-            self.gamma * 2 * np.sqrt(sq_dist)
-        return np.squeeze(ucb_derivative)
+
+        pred = np.maximum(0, pred)
+        epred = np.exp(-pred / self.tau)
+        ucb_derivative = pred_derivative * (
+            (1.0 - epred) / (pred + self.epsilon) +
+            epred / self.tau * (
+                np.log(pred + self.epsilon) - np.log(self.epsilon))) + \
+            self._mse_scaling() * mse_derivative + \
+            self.gamma * 2 * (x - noisy_states[0].position)
+        return np.asfortranarray(ucb_derivative)
 
     def _mse_scaling(self):
         if self.mse_scaling == 'auto':
@@ -274,6 +283,45 @@ class PDUCB(DUCBBased):
                 max_val + self.epsilon) - np.log(self.epsilon))
         else:
             return self.kappa * self.mse_scaling
+
+
+class GO(DUCBBased):
+    def __init__(self, predictor, gamma):
+        super(GO, self).__init__(predictor)
+        self.gamma = gamma
+
+    def _eval_fn(self, common_terms, x, noisy_states):
+        pred, unused, mse, unused, sq_dist = common_terms
+        if hasattr(self.predictor, 'y_bv'):
+            eta = self.predictor.y_bv.max()
+        else:
+            eta = self.predictor.y_train.data.max()
+
+        std = np.sqrt(mse)
+        go = eta + (pred - eta) * normdist.cdf((pred - eta) / std) + \
+            std * normdist.pdf((pred - eta) / std) + self.gamma * sq_dist
+        return np.asfortranarray(go)
+
+    def _eval_derivative(self, common_terms, x, noisy_states):
+        pred, pred_der, mse, mse_der, sq_dist = common_terms
+        if hasattr(self.predictor, 'y_bv'):
+            eta = self.predictor.y_bv.max()
+        else:
+            eta = self.predictor.y_train.data.max()
+        std = np.sqrt(mse)
+        std_der = mse_der / 2.0 / std
+        a = (pred - eta) / std
+        a_der = pred_der / std - std_der / mse * (pred - eta)
+        cdf = normdist.cdf(a)
+        cdf_der = a_der * 2.0 / np.sqrt(np.pi) * np.exp(-np.square(a))
+        pdf = normdist.pdf(a)
+        pdf_der = -a_der * a / np.sqrt(2.0 * np.pi) * np.exp(
+            -np.square(a) / 2.0)
+
+        return np.asfortranarray(
+            pred_der * cdf + pred * cdf_der - eta * cdf_der +
+            std_der * pdf + std * pdf_der + \
+            self.gamma * 2 * (x - noisy_states[0].position))
 
 
 class FollowWaypoints(object):
