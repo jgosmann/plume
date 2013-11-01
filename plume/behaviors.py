@@ -114,7 +114,8 @@ class AcquisitionFnTargetChooser(TargetChooser):
 
         x, unused, unused = fmin_l_bfgs_b(
             NegateFn(self.acquisition_fn).eval_with_derivative, x0,
-            args=(noisy_states,), bounds=self.get_effective_area())
+            args=(noisy_states,), bounds=self.get_effective_area(),
+            pgtol=1e-10, factr=1e2)
 
         return [x]
 
