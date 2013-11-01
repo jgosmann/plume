@@ -250,21 +250,28 @@ class PDUCB(DUCBBased):
         self.mse_scaling = mse_scaling
         self.gamma = gamma
         self.epsilon = epsilon
+        self.tau = self.epsilon
 
     def _eval_fn(self, common_terms, x, noisy_states):
         pred, unused, mse, unused, sq_dist = common_terms
-        ucb = np.log(np.maximum(0, pred) + self.epsilon) + \
-            self._mse_scaling() * np.sqrt(mse)[:, None] + \
-            self.gamma * sq_dist
-        return np.squeeze(ucb)
+        pred = np.maximum(0, pred)
+        epred = np.exp(-pred / self.tau)
+        ucb = np.log(pred + self.epsilon) * (1 - epred) + epred * np.log(
+            self.epsilon) + self._mse_scaling() * mse + self.gamma * sq_dist
+        return np.asfortranarray(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
         pred, pred_derivative, mse, mse_derivative, sq_dist = common_terms
-        ucb_derivative = pred_derivative / (pred + self.epsilon) + \
-            self._mse_scaling() * mse_derivative * 0.5 / np.sqrt(
-                mse)[:, None] + \
-            self.gamma * 2 * np.sqrt(sq_dist)
-        return np.squeeze(ucb_derivative)
+
+        pred = np.maximum(0, pred)
+        epred = np.exp(-pred / self.tau)
+        ucb_derivative = pred_derivative * (
+            (1.0 - epred) / (pred + self.epsilon) +
+            epred / self.tau * (
+                np.log(pred + self.epsilon) - np.log(self.epsilon))) + \
+            self._mse_scaling() * mse_derivative + \
+            self.gamma * 2 * (x - noisy_states[0].position)
+        return np.asfortranarray(ucb_derivative)
 
     def _mse_scaling(self):
         if self.mse_scaling == 'auto':
