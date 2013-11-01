@@ -530,7 +530,7 @@ class SparseGP(object):
 
 
 class OnlineGP(object):
-    def __init__(self, kernel, noise_var=1.0, expected_samples=100):
+    def __init__(self, kernel=None, noise_var=1.0, expected_samples=100):
         self.kernel = kernel
         self.noise_var = noise_var
         self.expected_samples = expected_samples
