@@ -321,7 +321,7 @@ class GO(DUCBBased):
 
         return np.asfortranarray(
             pred_der * cdf + pred * cdf_der - eta * cdf_der +
-            std_der * pdf + std * pdf_der + \
+            std_der * pdf + std * pdf_der +
             self.gamma * 2 * (x - noisy_states[0].position))
 
 
