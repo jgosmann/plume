@@ -214,41 +214,42 @@ class DUCBBased(DifferentiableFn):
 
 
 class DUCB(DUCBBased):
-    def __init__(self, predictor, kappa, mse_scaling, gamma):
+    def __init__(self, predictor, kappa, scaling, gamma):
         super(DUCB, self).__init__(predictor)
         self.kappa = kappa
-        self.mse_scaling = mse_scaling
+        self.scaling = scaling
         self.gamma = gamma
 
     def _eval_fn(self, common_terms, x, noisy_states):
         pred, unused, mse, unused, sq_dist = common_terms
-        ucb = pred + self._mse_scaling() * mse + self.gamma * np.sqrt(sq_dist)
+        ucb = pred + self._scaling() * (
+            self.kappa * mse + self.gamma * np.sqrt(sq_dist))
         return np.asfortranarray(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
         x = np.atleast_2d(x)
         pos = np.atleast_2d(noisy_states[0].position)
         unused, pred_derivative, mse, mse_derivative, sq_dist = common_terms
-        ucb_derivative = pred_derivative + \
-            self._mse_scaling() * mse_derivative + \
-            self.gamma * (x - pos) / np.sqrt(np.maximum(sq_dist, 1e-60))
+        ucb_derivative = pred_derivative + self._scaling() * (
+            self.kappa * mse_derivative +
+            self.gamma * (x - pos) / np.sqrt(np.maximum(sq_dist, 1e-60)))
         return np.asfortranarray(ucb_derivative)
 
-    def _mse_scaling(self):
-        if self.mse_scaling == 'auto':
+    def _scaling(self):
+        if self.scaling == 'auto':
             if hasattr(self.predictor, 'y_bv'):
-                return self.kappa * self.predictor.y_bv.max()
+                return self.predictor.y_bv.max()
             else:
-                return self.kappa * self.predictor.y_train.data.max()
+                return self.predictor.y_train.data.max()
         else:
-            return self.kappa * self.mse_scaling
+            return self.scaling
 
 
 class PDUCB(DUCBBased):
-    def __init__(self, predictor, kappa, mse_scaling, gamma, epsilon):
+    def __init__(self, predictor, kappa, scaling, gamma, epsilon):
         super(PDUCB, self).__init__(predictor)
         self.kappa = kappa
-        self.mse_scaling = mse_scaling
+        self.scaling = scaling
         self.gamma = gamma
         self.epsilon = epsilon
         self.tau = self.epsilon
@@ -258,7 +259,8 @@ class PDUCB(DUCBBased):
         pred = np.maximum(0, pred)
         epred = np.exp(-pred / self.tau)
         ucb = np.log(pred + self.epsilon) * (1 - epred) + epred * np.log(
-            self.epsilon) + self._mse_scaling() * mse + self.gamma * sq_dist
+            self.epsilon) + self._scaling() * (
+            self.kappa * mse + self.gamma * sq_dist)
         return np.asfortranarray(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
@@ -270,20 +272,20 @@ class PDUCB(DUCBBased):
             (1.0 - epred) / (pred + self.epsilon) +
             epred / self.tau * (
                 np.log(pred + self.epsilon) - np.log(self.epsilon))) + \
-            self._mse_scaling() * mse_derivative + \
-            self.gamma * 2 * (x - noisy_states[0].position)
+            self._scaling() * (
+                self.kappa * mse_derivative +
+                self.gamma * 2 * (x - noisy_states[0].position))
         return np.asfortranarray(ucb_derivative)
 
-    def _mse_scaling(self):
-        if self.mse_scaling == 'auto':
+    def _scaling(self):
+        if self.scaling == 'auto':
             if hasattr(self.predictor, 'y_bv'):
                 max_val = self.predictor.y_bv.max()
             else:
                 max_val = self.predictor.y_train.data.max()
-            return self.kappa * (np.log(
-                max_val + self.epsilon) - np.log(self.epsilon))
+            return np.log(max_val + self.epsilon) - np.log(self.epsilon)
         else:
-            return self.kappa * self.mse_scaling
+            return self.scaling
 
 
 class GO(DUCBBased):
