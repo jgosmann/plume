@@ -19,10 +19,10 @@ seedlist = [
     1122396727, 1976837197, 880502836, 1501326507, 1463703399]
 
 kernel = ('prediction', 'Matern32Kernel', (5,))
-predictor = ('prediction', 'OnlineGP', (1e-10, 1000))
+predictor = ('prediction', 'OnlineGP', (1e-10, 3000))
 
 kappa = {kappa}
-mse_scaling = {mse_scaling}
+scaling = {scaling}
 gamma = {gamma}
 acquisition_fn = {acq_fn}
 margin = 10
