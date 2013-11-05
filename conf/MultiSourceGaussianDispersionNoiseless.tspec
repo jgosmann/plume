@@ -9,17 +9,17 @@ configfile = conf/pducb.py.in
         kappa=kappa, scaling=scaling, gamma=gamma))"""
     _kappa = 0.1, 0.5, 0.75, 1, 1.25, 1.5, 2
     _scaling = "'auto'", 1
-    _gamma = 0, -1e-9, -1e-8, -1e-7, -1e-6, -1e-5
+    _gamma = 0, -1e-9, -1e-8, -1e-7, -1e-6, -1e-5, -1e-4, -1e-3, -1e-2
 
 [PDUCB]
     acq_fn = """('behaviors', 'PDUCB', (), dict(
         kappa=kappa, scaling=scaling, gamma=gamma, epsilon=1e-30))"""
     _kappa = 0.1, 0.5, 0.75, 1, 1.25, 1.5, 2
     _scaling = "'auto'", 70
-    _gamma = 0, -1e-9, -1e-8, -1e-7, -1e-6, -1e-5
+    _gamma = 0, -1e-9, -1e-8, -1e-7, -1e-6, -1e-5, -1e-4, -1e-3, -1e-2
 
 [GO]
     acq_fn = """('behaviors', 'GO', (), dict(gamma=gamma))"""
     kappa = 0
     scaling = 1
-    _gamma = 0, -1e-9, -1e-8, -1e-7, -1e-6, -1e-5
+    _gamma = 0, -1e-9, -1e-8, -1e-7, -1e-6, -1e-5, -1e-4, -1e-3, -1e-2
