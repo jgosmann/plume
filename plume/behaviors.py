@@ -124,10 +124,11 @@ class AcquisitionFnTargetChooser(TargetChooser):
 
 
 class SurroundArea(TargetChooser):
-    def __init__(self, area, margin):
+    def __init__(self, area, margin, height=None):
         self.area = area
         self.margin = margin
         self.current_target = -1
+        self.height = height
 
     def new_targets(self, noisy_states):
         self.current_target += 1
@@ -140,16 +141,17 @@ class SurroundArea(TargetChooser):
 
     def _init_targets(self, noisy_states):
         ea = self.get_effective_area()
-        height = np.mean(ea[2, :])
+        if self.height is None:
+            self.height = np.mean(ea[2, :])
         distances = np.abs(ea - np.asarray(noisy_states[0].position)[:, None])
         nearest = np.unravel_index(np.argmin(distances[:2, :]), (2, 2))
-        start = np.array(noisy_states[0].position[:2] + (height,))
+        start = np.array(noisy_states[0].position[:2] + (self.height,))
         start[nearest[0]] = ea[nearest[0], nearest[1]]
         corners = np.array([
-            [ea[0, 0], ea[1, 0], height],
-            [ea[0, 1], ea[1, 0], height],
-            [ea[0, 1], ea[1, 1], height],
-            [ea[0, 0], ea[1, 1], height]])
+            [ea[0, 0], ea[1, 0], self.height],
+            [ea[0, 1], ea[1, 0], self.height],
+            [ea[0, 1], ea[1, 1], self.height],
+            [ea[0, 0], ea[1, 1], self.height]])
         d = np.sum(np.square(corners - start), axis=1)
         nearest_corner = np.argmin(d)
         if d[(nearest_corner + 1) % len(d)] < d[nearest_corner - 1]:
