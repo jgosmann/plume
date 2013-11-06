@@ -127,15 +127,6 @@ class SurroundArea(TargetChooser):
     def __init__(self, area, margin):
         self.area = area
         self.margin = margin
-        effective_area = self.get_effective_area()
-        height = np.mean(effective_area[2, :])
-
-        self.targets = np.array([
-            [effective_area[0, 0], effective_area[1, 0], height],
-            [effective_area[0, 1], effective_area[1, 0], height],
-            [effective_area[0, 1], effective_area[1, 1], height],
-            [effective_area[0, 0], effective_area[1, 1], height],
-            [effective_area[0, 0], effective_area[1, 0], height]])
         self.current_target = -1
 
     def new_targets(self, noisy_states):
