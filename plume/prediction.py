@@ -534,14 +534,17 @@ class OnlineGP(object):
         self.kernel = kernel
         self.noise_var = noise_var
         self.expected_samples = expected_samples
+        self.min_rel_jitter = 1e-6
+        self.max_rel_jitter = 1e-1
+        self.reset()
+
+    trained = property(lambda self: self.updates > 0)
+
+    def reset(self):
         self.x_train = None
         self.y_train = None
         self.L_inv = None
         self.updates = 0
-        self.min_rel_jitter = 1e-6
-        self.max_rel_jitter = 1e-1
-
-    trained = property(lambda self: self.updates > 0)
 
     def fit(self, x_train, y_train):
         self.x_train = self._create_data_array(np.asarray(x_train))
