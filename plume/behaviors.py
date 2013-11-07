@@ -150,9 +150,13 @@ class SurroundArea(TargetChooser):
             [ea[0, 1], ea[1, 0], height],
             [ea[0, 1], ea[1, 1], height],
             [ea[0, 0], ea[1, 1], height]])
-        nearest_corner = np.argmin(np.sum(np.square(corners - start), axis=1))
-        self.targets = np.vstack(
-            ([start], np.roll(corners, -nearest_corner, 0), [start]))
+        d = np.sum(np.square(corners - start), axis=1)
+        nearest_corner = np.argmin(d)
+        if d[(nearest_corner + 1) % len(d)] < d[nearest_corner - 1]:
+            corners = np.roll(np.flipud(corners), nearest_corner + 1, 0)
+        else:
+            corners = np.roll(corners, -nearest_corner, 0)
+        self.targets = np.vstack(([start], corners, [start]))
 
     def get_effective_area(self):
         return self.area + np.array([self.margin, -self.margin])
