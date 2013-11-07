@@ -89,12 +89,16 @@ def do_simulation_run(trial, output_filename, conf, client):
                 behaviors.SurroundUntilFound(
                     predictor, conf['area'], conf['margin']),
                 acq_behavior])
+            maxv = 4
         else:
             target_chooser = behaviors.ChainTargetChoosers([
                 behaviors.SurroundArea(conf['area'], conf['margin']),
                 acq_behavior])
+            maxv = 6
         controller = behaviors.FollowWaypoints(
-            target_chooser, conf['target_precision'])
+            target_chooser, conf['target_precision'],
+            behaviors.VelocityTowardsWaypointController(
+                maxv, maxv, target_chooser.get_effective_area()))
         updater = instantiate(
             *conf['updater'], predictor=predictor, plume_recorder=recorder)
         controller.observers.append(updater)
