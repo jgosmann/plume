@@ -112,12 +112,22 @@ class AcquisitionFnTargetChooser(TargetChooser):
         max_idx = np.unravel_index(np.argmax(acq), x.shape)
         x0 = np.array([x[max_idx], y[max_idx], z[max_idx]])
 
-        x, unused, unused = fmin_l_bfgs_b(
+        x1, val1, unused = fmin_l_bfgs_b(
             NegateFn(self.acquisition_fn).eval_with_derivative, x0,
             args=(noisy_states,), bounds=self.get_effective_area(),
             pgtol=1e-10, factr=1e2)
 
-        return [x]
+        idx = np.argmax(self.acquisition_fn.predictor.y_train.data)
+        x0 = self.acquisition_fn.predictor.x_train.data[idx]
+        x2, val2, unused = fmin_l_bfgs_b(
+            NegateFn(self.acquisition_fn).eval_with_derivative, x0,
+            args=(noisy_states,), bounds=self.get_effective_area(),
+            pgtol=1e-10, factr=1e2)
+
+        if val1 < val2:
+            return [x1]
+        else:
+            return [x2]
 
     def get_effective_area(self):
         return self.area + np.array([self.margin, -self.margin])
