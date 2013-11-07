@@ -81,11 +81,18 @@ def do_simulation_run(trial, output_filename, conf, client):
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
         err_recorder = ErrorRecorder(fileh, client, predictor, num_steps)
 
-        target_chooser = behaviors.ChainTargetChoosers([
-            behaviors.SurroundArea(conf['area'], conf['margin']),
-            behaviors.AcquisitionFnTargetChooser(
-                instantiate(*conf['acquisition_fn'], predictor=predictor),
-                conf['area'], conf['margin'], conf['grid_resolution'])])
+        acq_behavior = behaviors.AcquisitionFnTargetChooser(
+            instantiate(*conf['acquisition_fn'], predictor=predictor),
+            conf['area'], conf['margin'], conf['grid_resolution'])
+        if 'noise_search' in conf and conf['noise_search']:
+            target_chooser = behaviors.ChainTargetChoosers([
+                behaviors.SurroundUntilFound(
+                    predictor, conf['area'], conf['margin']),
+                acq_behavior])
+        else:
+            target_chooser = behaviors.ChainTargetChoosers([
+                behaviors.SurroundArea(conf['area'], conf['margin']),
+                acq_behavior])
         controller = behaviors.FollowWaypoints(
             target_chooser, conf['target_precision'])
         updater = instantiate(
