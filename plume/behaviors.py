@@ -326,6 +326,8 @@ class FollowWaypoints(object):
         if velocity_controller is None:
             self.velocity_controller = VelocityTowardsWaypointController(
                 6, 6, self.target_chooser.get_effective_area())
+        else:
+            self.velocity_controller = velocity_controller
         self.observers = []
         self.num_step = 0
 
