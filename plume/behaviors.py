@@ -174,6 +174,39 @@ class SurroundArea(TargetChooser):
         return self.area + np.array([self.margin, -self.margin])
 
 
+class SurroundUntilFound(TargetChooser):
+    def __init__(
+            self, predictor, area, margin,
+            heights=[-10, -30, -50, -70, -60, -40, -20]):
+        self.predictor = predictor
+        self.area = area
+        self.margin = margin
+        self.heights = heights
+        self.lap = 0
+        self.target_chooser = SurroundArea(area, margin, heights[self.lap])
+
+    def new_targets(self, noisy_states):
+        targets = self.target_chooser.new_targets(noisy_states)
+        while targets is None:
+            self.lap += 1
+            if self.lap >= len(self.heights):
+                return None
+            threshold = 10 * np.std(self.predictor.y_train.data)
+            print threshold
+            if self.predictor.y_train.data.max() > threshold:
+                logger.info('Plume found')
+                return None
+            logger.info('Plume not found, yet')
+            self.predictor.reset()
+            self.target_chooser = SurroundArea(
+                self.area, self.margin, self.heights[self.lap])
+            targets = self.target_chooser.new_targets(noisy_states)
+        return targets
+
+    def get_effective_area(self):
+        return self.area + np.array([self.margin, -self.margin])
+
+
 class ChainTargetChoosers(TargetChooser):
     def __init__(self, choosers):
         self.choosers = choosers
