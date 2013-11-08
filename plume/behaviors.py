@@ -301,7 +301,8 @@ class PDUCB(DUCBBased):
         epred = np.exp(-pred / self.tau)
         ucb = np.log(pred + self.epsilon) * (1 - epred) + epred * np.log(
             self.epsilon) + self._scaling() * (
-            self.kappa * mse + self.gamma * sq_dist)
+            self.kappa * (mse - self.predictor.noise_var) +
+            self.gamma * sq_dist)
         return np.asfortranarray(ucb)
 
     def _eval_derivative(self, common_terms, x, noisy_states):
