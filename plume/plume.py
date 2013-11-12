@@ -119,10 +119,13 @@ def do_simulation_run(trial, output_filename, conf, client):
             err_tbl.append(err)
             raise
         finally:
-            if conf['full_record']:
-                store_obj(fileh, fileh.createGroup('/', 'gp'), predictor)
-            else:
-                recorder.prune()
+            try:
+                if conf['full_record']:
+                    store_obj(fileh, fileh.createGroup('/', 'gp'), predictor)
+                else:
+                    recorder.prune()
+            except:
+                pass
 
 
 class QRSimApplication(object):
