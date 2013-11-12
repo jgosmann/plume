@@ -240,9 +240,10 @@ class WindBasedPartialSurroundFactory(object):
 class SurroundUntilFound(TargetChooser):
     def __init__(
             self, predictor, target_chooser_factory,
-            heights=[-10, -30, -50, -70, -60, -40, -20]):
+            heights=[-10, -30, -50, -70, -60, -40, -20], threshold_factor=5):
         self.predictor = predictor
         self.heights = heights
+        self.threshold_factor = threshold_factor
         self.lap = 0
         self.target_chooser_factory = target_chooser_factory
         self.target_chooser = target_chooser_factory.create(heights[self.lap])
@@ -253,8 +254,8 @@ class SurroundUntilFound(TargetChooser):
             self.lap += 1
             if self.lap >= len(self.heights):
                 return None
-            threshold = 10 * np.std(self.predictor.y_train.data)
-            print threshold
+            threshold = self.threshold_factor * np.std(
+                self.predictor.y_train.data)
             if self.predictor.y_train.data.max() > threshold:
                 logger.info('Plume found')
                 return None
