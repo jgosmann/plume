@@ -503,6 +503,7 @@ class GotStuckError(Exception):
     pass
 
 
+# FIXME multi heli prediction updates during surround
 class BatchPredictionUpdater(object):
     def __init__(self, predictor, plume_recorder):
         self.predictor = predictor
@@ -526,10 +527,12 @@ class BatchPredictionUpdater(object):
             self.update_prediction()
 
     def update_prediction(self):
-        self.predictor.add_observations(
-            self.noisy_positions.data[self.last_update:, 0, :],
-            self.plume_recorder.plume_measurements[0, self.last_update:, None])
-        self.last_update = len(self.noisy_positions.data)
+        for uav in xrange(len(self.plume_recorder.plume_measurements)):
+            self.predictor.add_observations(
+                self.noisy_positions.data[self.last_update:, uav, :],
+                self.plume_recorder.plume_measurements[
+                    uav, self.last_update:, None])
+            self.last_update = len(self.noisy_positions.data)
 
 
 class TargetMeasurementPredictionUpdater(object):
