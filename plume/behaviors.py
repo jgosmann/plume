@@ -217,16 +217,35 @@ class WindBasedPartialSurround(TargetChooser):
         return solve(C, np.array([1, 0]))
 
 
-class SurroundUntilFound(TargetChooser):
-    def __init__(
-            self, predictor, area, margin,
-            heights=[-10, -30, -50, -70, -60, -40, -20]):
-        self.predictor = predictor
+class SurroundAreaFactory(object):
+    def __init__(self, area, margin):
         self.area = area
         self.margin = margin
+
+    def create(self, height):
+        return SurroundArea(self.area, self.margin, height)
+
+
+class WindBasedPartialSurroundFactory(object):
+    def __init__(self, client, area, margin):
+        self.client = client
+        self.area = area
+        self.margin = margin
+
+    def create(self, height):
+        return WindBasedPartialSurround(
+            self.client, self.area, self.margin, height)
+
+
+class SurroundUntilFound(TargetChooser):
+    def __init__(
+            self, predictor, target_chooser_factory,
+            heights=[-10, -30, -50, -70, -60, -40, -20]):
+        self.predictor = predictor
         self.heights = heights
         self.lap = 0
-        self.target_chooser = SurroundArea(area, margin, heights[self.lap])
+        self.target_chooser_factory = target_chooser_factory
+        self.target_chooser = target_chooser_factory.create(heights[self.lap])
 
     def new_targets(self, noisy_states):
         targets = self.target_chooser.new_targets(noisy_states)
@@ -241,13 +260,13 @@ class SurroundUntilFound(TargetChooser):
                 return None
             logger.info('Plume not found, yet')
             self.predictor.reset()
-            self.target_chooser = SurroundArea(
-                self.area, self.margin, self.heights[self.lap])
+            self.target_chooser = self.target_chooser_factory.create(
+                self.heights[self.lap])
             targets = self.target_chooser.new_targets(noisy_states)
         return targets
 
     def get_effective_area(self):
-        return self.area + np.array([self.margin, -self.margin])
+        return self.target_chooser.get_effective_area()
 
 
 class ChainTargetChoosers(TargetChooser):

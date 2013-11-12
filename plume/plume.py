@@ -84,11 +84,16 @@ def do_simulation_run(trial, output_filename, conf, client):
         acq_behavior = behaviors.AcquisitionFnTargetChooser(
             instantiate(*conf['acquisition_fn'], predictor=predictor),
             conf['area'], conf['margin'], conf['grid_resolution'])
-        if 'noise_search' in conf and conf['noise_search']:
+        if 'noise_search' in conf:
+            if conf['noise_search'] == 'wind':
+                tc_factory = behaviors.WindBasedPartialSurroundFactory(
+                    client, conf['area'], conf['margin'])
+            else:
+                tc_factory = behaviors.SurroundAreaFactory(
+                    conf['area'], conf['margin'])
             target_chooser = behaviors.ChainTargetChoosers([
                 behaviors.SurroundUntilFound(
-                    predictor, conf['area'], conf['margin']),
-                acq_behavior])
+                    predictor, tc_factory), acq_behavior])
             maxv = 4
         else:
             target_chooser = behaviors.ChainTargetChoosers([
