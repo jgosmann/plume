@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 import numpy.random as rnd
-from numpy.linalg import norm
+from numpy.linalg import norm, solve
 from qrsim.tcpclient import UAVControls
 from scipy.optimize import fmin_l_bfgs_b
 from scipy.stats import norm as normdist
@@ -173,6 +173,48 @@ class SurroundArea(TargetChooser):
 
     def get_effective_area(self):
         return self.area + np.array([self.margin, -self.margin])
+
+
+class WindBasedPartialSurround(TargetChooser):
+    def __init__(self, client, area, margin, height=None):
+        self.client = client
+        self.area = area
+        self.margin = margin
+        self.current_target = -1
+        self.height = height
+
+    def new_targets(self, noisy_states):
+        self.current_target += 1
+        if self.current_target == 0:
+            self._init_targets(noisy_states)
+
+        if self.current_target >= len(self.targets):
+            return None
+        return [self.targets[self.current_target]]
+
+    def _init_targets(self, noisy_states):
+        ea = self.get_effective_area()
+        wind_dir = self._get_wind_direction()
+        if self.height is None:
+            self.height = np.mean(ea[2, :])
+
+        corners = np.array(3 * [[0, 0, self.height]])
+        pos_wind = np.asarray(wind_dir > 0, dtype=int)
+        corners[0, :2] = ea[(0, 1), (1 - pos_wind[0], pos_wind[1])]
+        corners[1, :2] = ea[(0, 1), pos_wind]
+        corners[2, :2] = ea[(0, 1), (pos_wind[0], 1 - pos_wind[1])]
+
+        d = np.sum(np.square(corners - noisy_states[0].position), axis=1)
+        if d[0] > d[2]:
+            corners = np.flipud(corners)
+        self.targets = corners
+
+    def get_effective_area(self):
+        return self.area + np.array([self.margin, -self.margin])
+
+    def _get_wind_direction(self):
+        C = self.client.get_wind_axis_transformation()
+        return solve(C, np.array([1, 0]))
 
 
 class SurroundUntilFound(TargetChooser):
