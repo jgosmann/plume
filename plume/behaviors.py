@@ -242,9 +242,10 @@ class WindBasedPartialSurroundFactory(object):
 
 class SurroundUntilFound(object):
     def __init__(
-            self, predictor, target_chooser_factory,
+            self, prediction_updater, target_chooser_factory,
             heights=[-10, -30, -50, -70, -60, -40, -20], threshold_factor=5):
-        self.predictor = predictor
+        self.prediction_updater = prediction_updater
+        self.prediction_updater.on_hold = True
         self.heights = heights
         self.threshold_factor = threshold_factor
         self.lap = 0
@@ -265,17 +266,19 @@ class SurroundUntilFound(object):
             self.lap += 1
             if self.lap >= len(self.heights):
                 return None
-            # FIXME predictor and threshold handling
-            threshold = self.threshold_factor * np.std(
-                self.predictor.y_train.data)
-            if self.predictor.y_train.data.max() > threshold:
+            measurements = \
+                self.prediction_updater.get_uncommited_measurements()[uav]
+            threshold = self.threshold_factor * np.std(measurements)
+            if measurements.max() > threshold:
                 logger.info('Plume found')
+                self.prediction_updater.update_prediction([uav])
+                self.prediction_updater.on_hold = False
                 return None
             logger.info('Plume not found, yet')
-            self.predictor.reset()
             self.target_chooser[uav] = self.target_chooser_factory.create(
                 self.heights[self.lap])
-            target = self.target_chooser.new_targets(noisy_states)
+            target = self.target_chooser[uav].new_target(
+                noisy_states[uav].position)
         return target
 
     def get_effective_area(self):
@@ -510,6 +513,7 @@ class BatchPredictionUpdater(object):
         self.plume_recorder = plume_recorder
         self.last_update = 0
         self.noisy_positions = None
+        self.on_hold = False
 
     def step(self, noisy_states):
         if self.noisy_positions is None:
@@ -519,20 +523,27 @@ class BatchPredictionUpdater(object):
 
         self.noisy_positions.append([s.position for s in noisy_states])
         can_do_first_training = self.plume_recorder.num_recorded > 1
-        if not self.predictor.trained and can_do_first_training:
+        do_update = not self.predictor.trained and can_do_first_training and \
+            not self.on_hold
+        if do_update:
             self.update_prediction()
 
     def target_reached(self):
-        if self.predictor.trained:
+        if self.predictor.trained and not self.on_hold:
             self.update_prediction()
 
-    def update_prediction(self):
-        for uav in xrange(len(self.plume_recorder.plume_measurements)):
+    def update_prediction(self, uavs=None):
+        if uavs is None:
+            uavs = range(len(self.plume_recorder.plume_measurements))
+        for uav in uavs:
             self.predictor.add_observations(
                 self.noisy_positions.data[self.last_update:, uav, :],
                 self.plume_recorder.plume_measurements[
                     uav, self.last_update:, None])
             self.last_update = len(self.noisy_positions.data)
+
+    def get_uncommited_measurements(self):
+        return self.plume_recorder.plume_measurements[:, self.last_update:]
 
 
 class TargetMeasurementPredictionUpdater(object):

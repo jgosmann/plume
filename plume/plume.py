@@ -81,6 +81,9 @@ def do_simulation_run(trial, output_filename, conf, client):
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
         err_recorder = ErrorRecorder(fileh, client, predictor, num_steps)
 
+        updater = instantiate(
+            *conf['updater'], predictor=predictor, plume_recorder=recorder)
+
         acq_behavior = behaviors.AcquisitionFnTargetChooser(
             instantiate(*conf['acquisition_fn'], predictor=predictor),
             conf['area'], conf['margin'], conf['grid_resolution'])
@@ -93,7 +96,7 @@ def do_simulation_run(trial, output_filename, conf, client):
                     conf['area'], conf['margin'])
             target_chooser = behaviors.ChainTargetChoosers([
                 behaviors.SurroundUntilFound(
-                    predictor, tc_factory), acq_behavior])
+                    updater, tc_factory), acq_behavior])
             maxv = 4
         else:
             target_chooser = behaviors.ChainTargetChoosers([
@@ -104,8 +107,6 @@ def do_simulation_run(trial, output_filename, conf, client):
             target_chooser, conf['target_precision'],
             behaviors.VelocityTowardsWaypointController(
                 maxv, maxv, target_chooser.get_effective_area()))
-        updater = instantiate(
-            *conf['updater'], predictor=predictor, plume_recorder=recorder)
         controller.observers.append(updater)
 
         behavior = controller.velocity_controller
