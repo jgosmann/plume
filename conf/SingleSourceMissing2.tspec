@@ -123,7 +123,7 @@ configfile = conf/pducb.py.in
     scaling = 'auto'
     repeat = 1
 
-[_DUCB_scaling='auto' kappa=0.5 gamma=-1e-3]
+[a_DUCB_scaling='auto' kappa=0.5 gamma=-1e-3]
     acq_fn = """('behaviors', 'DUCB', (), dict(kappa=kappa, scaling=scaling, gamma=gamma))"""
     kappa = 0.5
     gamma = -1e-3
@@ -305,7 +305,7 @@ configfile = conf/pducb.py.in
     scaling = 1
     repeat = 0
 
-[_DUCB_scaling=1 kappa=1.5 gamma=-1e-3]
+[a_DUCB_scaling=1 kappa=1.5 gamma=-1e-3]
     acq_fn = """('behaviors', 'DUCB', (), dict(kappa=kappa, scaling=scaling, gamma=gamma))"""
     kappa = 1.5
     gamma = -1e-3
@@ -326,7 +326,7 @@ configfile = conf/pducb.py.in
     scaling = 1
     repeat = 0
 
-[_DUCB_scaling=1 kappa=1.5 gamma=-1e-2]
+[a_DUCB_scaling=1 kappa=1.5 gamma=-1e-2]
     acq_fn = """('behaviors', 'DUCB', (), dict(kappa=kappa, scaling=scaling, gamma=gamma))"""
     kappa = 1.5
     gamma = -1e-2
@@ -389,7 +389,7 @@ configfile = conf/pducb.py.in
     scaling = 1
     repeat = 0
 
-[_DUCB_scaling=1 kappa=2 gamma=-1e-2]
+[a_DUCB_scaling=1 kappa=2 gamma=-1e-2]
     acq_fn = """('behaviors', 'DUCB', (), dict(kappa=kappa, scaling=scaling, gamma=gamma))"""
     kappa = 2
     gamma = -1e-2
