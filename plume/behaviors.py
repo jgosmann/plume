@@ -12,7 +12,6 @@ from nputil import GrowingArray, meshgrid_nd
 logger = logging.getLogger(__name__)
 
 
-# TODO prevent collisions
 class VelocityTowardsWaypointController(object):
     def __init__(self, maxv, max_climb, area):
         self.maxv = maxv
@@ -40,12 +39,14 @@ class VelocityTowardsWaypointController(object):
             assert len(noisy_states) == len(self.targets)
             for uav in xrange(len(noisy_states)):
                 controls.U[uav, :] = self._get_velocities(
-                    noisy_states[uav].position, self.targets[uav])
+                    uav, noisy_states, self.targets[uav])
         return controls
 
-    def _get_velocities(self, current_pos, to):
+    def _get_velocities(self, uav, noisy_states, to):
+        current_pos = noisy_states[uav].position
         v = 0.025 * np.array([self.maxv, self.maxv, self.max_climb]) * \
             (to - current_pos)
+        v += self._get_collision_prevention(uav, noisy_states)
         if norm(v[:2]) > self.maxv:
             v[:2] *= self.maxv / norm(v[:2])
         v[2] = np.clip(v[2], -self.max_climb, self.max_climb)
@@ -55,6 +56,14 @@ class VelocityTowardsWaypointController(object):
         v[outside_low] = self.max_speeds[outside_low]
         v[outside_high] = -self.max_speeds[outside_high]
         return v
+
+    def _get_collision_prevention(self, uav, noisy_states):
+        ds = [np.asarray(noisy_states[uav].position) - np.asarray(s.position)
+              for s in noisy_states if s is not noisy_states[uav]]
+        norms = [norm(d) for d in ds]
+        return np.sum(
+            [5 * self.max_speeds * d / (n ** 3) for d, n in zip(ds, norms)],
+            axis=0)
 
 
 class DifferentiableFn(object):
