@@ -273,6 +273,7 @@ class SurroundUntilFound(object):
                 logger.info('Plume found')
                 self.prediction_updater.update_prediction([uav])
                 self.prediction_updater.on_hold = False
+                self.lap = len(self.heights)
                 return None
             logger.info('Plume not found, yet')
             self.target_chooser[uav] = self.target_chooser_factory.create(
