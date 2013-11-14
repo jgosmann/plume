@@ -93,7 +93,6 @@ class NegateFn(DifferentiableFn):
         return -self.fn._eval_derivative(common_terms, *args, **kwargs)
 
 
-# FIXME multicopter
 class AcquisitionFnTargetChooser(object):
     def __init__(self, acquisition_fn, area, margin, grid_resolution):
         self.acquisition_fn = acquisition_fn
@@ -101,18 +100,18 @@ class AcquisitionFnTargetChooser(object):
         self.margin = margin
         self.grid_resolution = grid_resolution
 
-    def new_targets(self, noisy_states):
+    def new_target(self, uav, noisy_states):
         ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
             self.get_effective_area(), self.grid_resolution)]
         x, y, z = meshgrid_nd(*ogrid)
         acq = self.acquisition_fn(
-            np.column_stack((x.flat, y.flat, z.flat)), noisy_states)
+            np.column_stack((x.flat, y.flat, z.flat)), uav, noisy_states)
         max_idx = np.unravel_index(np.argmax(acq), x.shape)
         x0 = np.array([x[max_idx], y[max_idx], z[max_idx]])
 
         x, val, unused = fmin_l_bfgs_b(
             NegateFn(self.acquisition_fn).eval_with_derivative, x0,
-            args=(noisy_states,), bounds=self.get_effective_area(),
+            args=(uav, noisy_states,), bounds=self.get_effective_area(),
             pgtol=1e-10, factr=1e2)
 
         idx = np.argmax(self.acquisition_fn.predictor.y_train.data)
@@ -120,7 +119,7 @@ class AcquisitionFnTargetChooser(object):
         for dx in 5 * rnd.randn(5):
             x2, val2, unused = fmin_l_bfgs_b(
                 NegateFn(self.acquisition_fn).eval_with_derivative, x0 + dx,
-                args=(noisy_states,), bounds=self.get_effective_area(),
+                args=(uav, noisy_states,), bounds=self.get_effective_area(),
                 pgtol=1e-10, factr=1e2)
             if val2 < val:
                 x = x2
@@ -304,7 +303,7 @@ class ChainTargetChoosers(object):
             self.current_chooser[uav] += 1
             if self.current_chooser[uav] >= len(self.choosers):
                 return None
-            target = self.choosers[self.current_chooser[uav]].new_targets(
+            target = self.choosers[self.current_chooser[uav]].new_target(
                 uav, noisy_states)
 
         return target
@@ -317,9 +316,10 @@ class DUCBBased(DifferentiableFn):
     def __init__(self, predictor):
         self.predictor = predictor
 
-    def _eval_common_terms(self, eval_fn, eval_derivative, x, noisy_states):
+    def _eval_common_terms(
+            self, eval_fn, eval_derivative, x, uav, noisy_states):
         x = np.atleast_2d(x)
-        pos = np.atleast_2d(noisy_states[0].position)
+        pos = np.atleast_2d(noisy_states[uav].position)
         if eval_derivative:
             pred, pred_derivative, mse, mse_derivative = \
                 self.predictor.predict(
@@ -329,11 +329,20 @@ class DUCBBased(DifferentiableFn):
             pred, mse = self.predictor.predict(
                 x, eval_MSE='err', eval_derivatives=False)
             pred_derivative = mse_derivative = None
-        sq_dist = np.maximum(0, -2 * np.dot(x, pos.T) + (
-            np.sum(np.square(x), 1)[:, None] +
-            np.sum(np.square(pos), 1)[None, :]))
+        sq_dist = self._calc_dist(x, pos)
+
+        uav_dist = [self._calc_dist(
+            x, np.atleast_2d(noisy_states[i].position))
+            for i in xrange(len(noisy_states)) if i != uav]
+
         return (pred, pred_derivative, np.atleast_2d(mse).T, mse_derivative,
-                sq_dist)
+                sq_dist, uav_dist)
+
+    @staticmethod
+    def _calc_dist(x1, x2):
+        return np.maximum(0, -2 * np.dot(x1, x2.T) + (
+            np.sum(np.square(x1), 1)[:, None] +
+            np.sum(np.square(x2), 1)[None, :]))
 
 
 class DUCB(DUCBBased):
@@ -343,16 +352,17 @@ class DUCB(DUCBBased):
         self.scaling = scaling
         self.gamma = gamma
 
-    def _eval_fn(self, common_terms, x, noisy_states):
-        pred, unused, mse, unused, sq_dist = common_terms
+    def _eval_fn(self, common_terms, x, uav, noisy_states):
+        pred, unused, mse, unused, sq_dist, uav_dist = common_terms
         ucb = pred + self._scaling() * (
             self.kappa * mse + self.gamma * np.sqrt(sq_dist))
         return np.asfortranarray(ucb)
 
-    def _eval_derivative(self, common_terms, x, noisy_states):
+    def _eval_derivative(self, common_terms, x, uav, noisy_states):
         x = np.atleast_2d(x)
-        pos = np.atleast_2d(noisy_states[0].position)
-        unused, pred_derivative, mse, mse_derivative, sq_dist = common_terms
+        pos = np.atleast_2d(noisy_states[uav].position)
+        unused, pred_derivative, mse, mse_derivative, sq_dist, uav_dist = \
+            common_terms
         ucb_derivative = pred_derivative + self._scaling() * (
             self.kappa * mse_derivative +
             self.gamma * (x - pos) / np.sqrt(np.maximum(sq_dist, 1e-60)))
@@ -377,8 +387,8 @@ class PDUCB(DUCBBased):
         self.epsilon = epsilon
         self.tau = self.epsilon
 
-    def _eval_fn(self, common_terms, x, noisy_states):
-        pred, unused, mse, unused, sq_dist = common_terms
+    def _eval_fn(self, common_terms, x, uav, noisy_states):
+        pred, unused, mse, unused, sq_dist, uav_dist = common_terms
         pred = np.maximum(0, pred)
         epred = np.exp(-pred / self.tau)
         ucb = np.log(pred + self.epsilon) * (1 - epred) + epred * np.log(
@@ -387,8 +397,9 @@ class PDUCB(DUCBBased):
             self.gamma * sq_dist)
         return np.asfortranarray(ucb)
 
-    def _eval_derivative(self, common_terms, x, noisy_states):
-        pred, pred_derivative, mse, mse_derivative, sq_dist = common_terms
+    def _eval_derivative(self, common_terms, x, uav, noisy_states):
+        pred, pred_derivative, mse, mse_derivative, sq_dist, uav_dist = \
+            common_terms
 
         pred = np.maximum(0, pred)
         epred = np.exp(-pred / self.tau)
@@ -398,7 +409,7 @@ class PDUCB(DUCBBased):
                 np.log(pred + self.epsilon) - np.log(self.epsilon))) + \
             self._scaling() * (
                 self.kappa * mse_derivative +
-                self.gamma * 2 * (x - noisy_states[0].position))
+                self.gamma * 2 * (x - noisy_states[uav].position))
         return np.asfortranarray(ucb_derivative)
 
     def _scaling(self):
@@ -417,8 +428,8 @@ class GO(DUCBBased):
         super(GO, self).__init__(predictor)
         self.gamma = gamma
 
-    def _eval_fn(self, common_terms, x, noisy_states):
-        pred, unused, mse, unused, sq_dist = common_terms
+    def _eval_fn(self, common_terms, x, uav, noisy_states):
+        pred, unused, mse, unused, sq_dist, uav_dist = common_terms
         if hasattr(self.predictor, 'y_bv'):
             eta = self.predictor.y_bv.max()
         else:
@@ -429,8 +440,8 @@ class GO(DUCBBased):
             std * normdist.pdf((pred - eta) / std) + self.gamma * sq_dist
         return np.asfortranarray(go)
 
-    def _eval_derivative(self, common_terms, x, noisy_states):
-        pred, pred_der, mse, mse_der, sq_dist = common_terms
+    def _eval_derivative(self, common_terms, x, uav, noisy_states):
+        pred, pred_der, mse, mse_der, sq_dist, uav_dist = common_terms
         if hasattr(self.predictor, 'y_bv'):
             eta = self.predictor.y_bv.max()
         else:
@@ -448,7 +459,7 @@ class GO(DUCBBased):
         return np.asfortranarray(
             pred_der * cdf + pred * cdf_der - eta * cdf_der +
             std_der * pdf + std * pdf_der +
-            self.gamma * 2 * (x - noisy_states[0].position))
+            self.gamma * 2 * (x - noisy_states[uav].position))
 
 
 class FollowWaypoints(object):
@@ -507,7 +518,6 @@ class GotStuckError(Exception):
     pass
 
 
-# FIXME multi heli prediction updates during surround
 class BatchPredictionUpdater(object):
     def __init__(self, predictor, plume_recorder):
         self.predictor = predictor
