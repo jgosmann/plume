@@ -388,13 +388,14 @@ class DUCB(DUCBBased):
 
 
 class PDUCB(DUCBBased):
-    def __init__(self, predictor, kappa, scaling, gamma, epsilon):
+    def __init__(self, predictor, kappa, scaling, gamma, epsilon, rho):
         super(PDUCB, self).__init__(predictor)
         self.kappa = kappa
         self.scaling = scaling
         self.gamma = gamma
         self.epsilon = epsilon
         self.tau = self.epsilon
+        self.rho = rho
 
     def _eval_fn(self, common_terms, x, uav, noisy_states):
         pred, unused, mse, unused, sq_dist, uav_dist = common_terms
@@ -403,12 +404,15 @@ class PDUCB(DUCBBased):
         ucb = np.log(pred + self.epsilon) * (1 - epred) + epred * np.log(
             self.epsilon) + self._scaling() * (
             self.kappa * (mse - self.predictor.noise_var) +
-            self.gamma * sq_dist)
+            self.gamma * sq_dist + self.rho * np.mean(uav_dist))
         return np.asfortranarray(ucb)
 
     def _eval_derivative(self, common_terms, x, uav, noisy_states):
         pred, pred_derivative, mse, mse_derivative, sq_dist, uav_dist = \
             common_terms
+        uav_dist_der = 2 * np.mean(
+            [x - s.position for s in noisy_states
+             if s is not noisy_states[uav]])
 
         pred = np.maximum(0, pred)
         epred = np.exp(-pred / self.tau)
@@ -418,7 +422,8 @@ class PDUCB(DUCBBased):
                 np.log(pred + self.epsilon) - np.log(self.epsilon))) + \
             self._scaling() * (
                 self.kappa * mse_derivative +
-                self.gamma * 2 * (x - noisy_states[uav].position))
+                self.gamma * 2 * (x - noisy_states[uav].position) +
+                self.rho * uav_dist_der)
         return np.asfortranarray(ucb_derivative)
 
     def _scaling(self):
