@@ -1,4 +1,4 @@
-experiment = SingleSourceGaussianDispersion
+experiment = SingleSourceGaussianDispersionNoiseless
 task = TaskPlumeSingleSourceGaussianDispersionNoiselessDefaultControls
 
 __cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Basic parameter search and comparision of DUCB vs PDUCB' python plume/plume.py -o {__name__!q} -c {configfile!t} -t {repeat} -q"""
