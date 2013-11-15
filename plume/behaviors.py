@@ -39,12 +39,14 @@ class VelocityTowardsWaypointController(object):
             assert len(noisy_states) == len(self.targets)
             for uav in xrange(len(noisy_states)):
                 controls.U[uav, :] = self._get_velocities(
-                    noisy_states[uav].position, self.targets[uav])
+                    uav, noisy_states, self.targets[uav])
         return controls
 
-    def _get_velocities(self, current_pos, to):
+    def _get_velocities(self, uav, noisy_states, to):
+        current_pos = noisy_states[uav].position
         v = 0.025 * np.array([self.maxv, self.maxv, self.max_climb]) * \
             (to - current_pos)
+        v += self._get_collision_prevention(uav, noisy_states)
         if norm(v[:2]) > self.maxv:
             v[:2] *= self.maxv / norm(v[:2])
         v[2] = np.clip(v[2], -self.max_climb, self.max_climb)
@@ -54,6 +56,14 @@ class VelocityTowardsWaypointController(object):
         v[outside_low] = self.max_speeds[outside_low]
         v[outside_high] = -self.max_speeds[outside_high]
         return v
+
+    def _get_collision_prevention(self, uav, noisy_states):
+        ds = [np.asarray(noisy_states[uav].position) - np.asarray(s.position)
+              for s in noisy_states if s is not noisy_states[uav]]
+        norms = [norm(d) for d in ds]
+        return np.sum(
+            [5 * self.max_speeds * d / (n ** 3) for d, n in zip(ds, norms)],
+            axis=0)
 
 
 class DifferentiableFn(object):
@@ -92,30 +102,25 @@ class NegateFn(DifferentiableFn):
         return -self.fn._eval_derivative(common_terms, *args, **kwargs)
 
 
-class TargetChooser(object):
-    def new_targets(self, noisy_states):
-        raise NotImplementedError()
-
-
-class AcquisitionFnTargetChooser(TargetChooser):
+class AcquisitionFnTargetChooser(object):
     def __init__(self, acquisition_fn, area, margin, grid_resolution):
         self.acquisition_fn = acquisition_fn
         self.area = area
         self.margin = margin
         self.grid_resolution = grid_resolution
 
-    def new_targets(self, noisy_states):
+    def new_target(self, uav, noisy_states):
         ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
             self.get_effective_area(), self.grid_resolution)]
         x, y, z = meshgrid_nd(*ogrid)
         acq = self.acquisition_fn(
-            np.column_stack((x.flat, y.flat, z.flat)), noisy_states)
+            np.column_stack((x.flat, y.flat, z.flat)), uav, noisy_states)
         max_idx = np.unravel_index(np.argmax(acq), x.shape)
         x0 = np.array([x[max_idx], y[max_idx], z[max_idx]])
 
         x, val, unused = fmin_l_bfgs_b(
             NegateFn(self.acquisition_fn).eval_with_derivative, x0,
-            args=(noisy_states,), bounds=self.get_effective_area(),
+            args=(uav, noisy_states,), bounds=self.get_effective_area(),
             pgtol=1e-10, factr=1e2)
 
         idx = np.argmax(self.acquisition_fn.predictor.y_train.data)
@@ -123,7 +128,7 @@ class AcquisitionFnTargetChooser(TargetChooser):
         for dx in 5 * rnd.randn(5):
             x2, val2, unused = fmin_l_bfgs_b(
                 NegateFn(self.acquisition_fn).eval_with_derivative, x0 + dx,
-                args=(noisy_states,), bounds=self.get_effective_area(),
+                args=(uav, noisy_states,), bounds=self.get_effective_area(),
                 pgtol=1e-10, factr=1e2)
             if val2 < val:
                 x = x2
@@ -134,29 +139,29 @@ class AcquisitionFnTargetChooser(TargetChooser):
         return self.area + np.array([self.margin, -self.margin])
 
 
-class SurroundArea(TargetChooser):
+class SurroundArea(object):
     def __init__(self, area, margin, height=None):
         self.area = area
         self.margin = margin
         self.current_target = -1
         self.height = height
 
-    def new_targets(self, noisy_states):
+    def new_target(self, position):
         self.current_target += 1
         if self.current_target == 0:
-            self._init_targets(noisy_states)
+            self._init_targets(position)
 
         if self.current_target >= len(self.targets):
             return None
         return [self.targets[self.current_target]]
 
-    def _init_targets(self, noisy_states):
+    def _init_targets(self, position):
         ea = self.get_effective_area()
         if self.height is None:
             self.height = np.mean(ea[2, :])
-        distances = np.abs(ea - np.asarray(noisy_states[0].position)[:, None])
+        distances = np.abs(ea - np.asarray(position)[:, None])
         nearest = np.unravel_index(np.argmin(distances[:2, :]), (2, 2))
-        start = np.array(noisy_states[0].position[:2] + (self.height,))
+        start = np.array(position[:2] + (self.height,))
         start[nearest[0]] = ea[nearest[0], nearest[1]]
         corners = np.array([
             [ea[0, 0], ea[1, 0], self.height],
@@ -175,7 +180,7 @@ class SurroundArea(TargetChooser):
         return self.area + np.array([self.margin, -self.margin])
 
 
-class WindBasedPartialSurround(TargetChooser):
+class WindBasedPartialSurround(object):
     def __init__(self, client, area, margin, height=None):
         self.client = client
         self.area = area
@@ -183,16 +188,16 @@ class WindBasedPartialSurround(TargetChooser):
         self.current_target = -1
         self.height = height
 
-    def new_targets(self, noisy_states):
+    def new_target(self, position):
         self.current_target += 1
         if self.current_target == 0:
-            self._init_targets(noisy_states)
+            self._init_targets(position)
 
         if self.current_target >= len(self.targets):
             return None
         return [self.targets[self.current_target]]
 
-    def _init_targets(self, noisy_states):
+    def _init_targets(self, position):
         ea = self.get_effective_area()
         wind_dir = self._get_wind_direction()
         if self.height is None:
@@ -204,7 +209,7 @@ class WindBasedPartialSurround(TargetChooser):
         corners[1, :2] = ea[(0, 1), pos_wind]
         corners[2, :2] = ea[(0, 1), (pos_wind[0], 1 - pos_wind[1])]
 
-        d = np.sum(np.square(corners - noisy_states[0].position), axis=1)
+        d = np.sum(np.square(corners - position), axis=1)
         if d[0] > d[2]:
             corners = np.flipud(corners)
         self.targets = corners
@@ -225,6 +230,9 @@ class SurroundAreaFactory(object):
     def create(self, height):
         return SurroundArea(self.area, self.margin, height)
 
+    def get_effective_area(self):
+        return self.area + np.array([self.margin, -self.margin])
+
 
 class WindBasedPartialSurroundFactory(object):
     def __init__(self, client, area, margin):
@@ -236,70 +244,91 @@ class WindBasedPartialSurroundFactory(object):
         return WindBasedPartialSurround(
             self.client, self.area, self.margin, height)
 
+    def get_effective_area(self):
+        return self.area + np.array([self.margin, -self.margin])
 
-class SurroundUntilFound(TargetChooser):
+
+class SurroundUntilFound(object):
     def __init__(
-            self, predictor, target_chooser_factory,
+            self, prediction_updater, target_chooser_factory,
             heights=[-10, -30, -50, -70, -60, -40, -20], threshold_factor=5):
-        self.predictor = predictor
+        self.prediction_updater = prediction_updater
+        self.prediction_updater.on_hold = True
         self.heights = heights
         self.threshold_factor = threshold_factor
         self.lap = 0
         self.target_chooser_factory = target_chooser_factory
-        self.target_chooser = target_chooser_factory.create(heights[self.lap])
+        self.target_chooser = None
 
-    def new_targets(self, noisy_states):
-        targets = self.target_chooser.new_targets(noisy_states)
-        while targets is None:
+    def new_target(self, uav, noisy_states):
+        if self.target_chooser is None:
+            self.target_chooser = []
+            for i in xrange(len(noisy_states)):
+                self.target_chooser.append(
+                    self.target_chooser_factory.create(self.heights[self.lap]))
+                self.lap += 1
+
+        target = self.target_chooser[uav].new_target(
+            noisy_states[uav].position)
+        while target is None:
             self.lap += 1
             if self.lap >= len(self.heights):
                 return None
-            threshold = self.threshold_factor * np.std(
-                self.predictor.y_train.data)
-            if self.predictor.y_train.data.max() > threshold:
+            measurements = \
+                self.prediction_updater.get_uncommited_measurements()[uav]
+            threshold = self.threshold_factor * np.std(measurements)
+            if measurements.max() > threshold:
                 logger.info('Plume found')
+                self.prediction_updater.update_prediction([uav])
+                self.prediction_updater.on_hold = False
+                self.lap = len(self.heights)
                 return None
             logger.info('Plume not found, yet')
-            self.predictor.reset()
-            self.target_chooser = self.target_chooser_factory.create(
+            self.target_chooser[uav] = self.target_chooser_factory.create(
                 self.heights[self.lap])
-            targets = self.target_chooser.new_targets(noisy_states)
-        return targets
+            target = self.target_chooser[uav].new_target(
+                noisy_states[uav].position)
+        return target
 
     def get_effective_area(self):
-        return self.target_chooser.get_effective_area()
+        return self.target_chooser_factory.get_effective_area()
 
 
-class ChainTargetChoosers(TargetChooser):
+class ChainTargetChoosers(object):
     def __init__(self, choosers):
         self.choosers = choosers
-        self.current_chooser = 0
+        self.current_chooser = None
 
-    def new_targets(self, noisy_states):
-        if self.current_chooser >= len(self.choosers):
+    def new_target(self, uav, noisy_states):
+        if self.current_chooser is None:
+            self.current_chooser = np.zeros(len(noisy_states), dtype=int)
+
+        if self.current_chooser[uav] >= len(self.choosers):
             return None
 
-        targets = self.choosers[self.current_chooser].new_targets(noisy_states)
-        while targets is None:
-            self.current_chooser += 1
-            if self.current_chooser >= len(self.choosers):
+        target = self.choosers[self.current_chooser[uav]].new_target(
+            uav, noisy_states)
+        while target is None:
+            self.current_chooser[uav] += 1
+            if self.current_chooser[uav] >= len(self.choosers):
                 return None
-            targets = self.choosers[self.current_chooser].new_targets(
-                noisy_states)
+            target = self.choosers[self.current_chooser[uav]].new_target(
+                uav, noisy_states)
 
-        return targets
+        return target
 
     def get_effective_area(self):
-        return self.choosers[self.current_chooser].get_effective_area()
+        return self.choosers[0].get_effective_area()
 
 
 class DUCBBased(DifferentiableFn):
     def __init__(self, predictor):
         self.predictor = predictor
 
-    def _eval_common_terms(self, eval_fn, eval_derivative, x, noisy_states):
+    def _eval_common_terms(
+            self, eval_fn, eval_derivative, x, uav, noisy_states):
         x = np.atleast_2d(x)
-        pos = np.atleast_2d(noisy_states[0].position)
+        pos = np.atleast_2d(noisy_states[uav].position)
         if eval_derivative:
             pred, pred_derivative, mse, mse_derivative = \
                 self.predictor.predict(
@@ -309,11 +338,20 @@ class DUCBBased(DifferentiableFn):
             pred, mse = self.predictor.predict(
                 x, eval_MSE='err', eval_derivatives=False)
             pred_derivative = mse_derivative = None
-        sq_dist = np.maximum(0, -2 * np.dot(x, pos.T) + (
-            np.sum(np.square(x), 1)[:, None] +
-            np.sum(np.square(pos), 1)[None, :]))
+        sq_dist = self._calc_dist(x, pos)
+
+        uav_dist = [self._calc_dist(
+            x, np.atleast_2d(noisy_states[i].position))
+            for i in xrange(len(noisy_states)) if i != uav]
+
         return (pred, pred_derivative, np.atleast_2d(mse).T, mse_derivative,
-                sq_dist)
+                sq_dist, uav_dist)
+
+    @staticmethod
+    def _calc_dist(x1, x2):
+        return np.maximum(0, -2 * np.dot(x1, x2.T) + (
+            np.sum(np.square(x1), 1)[:, None] +
+            np.sum(np.square(x2), 1)[None, :]))
 
 
 class DUCB(DUCBBased):
@@ -323,16 +361,17 @@ class DUCB(DUCBBased):
         self.scaling = scaling
         self.gamma = gamma
 
-    def _eval_fn(self, common_terms, x, noisy_states):
-        pred, unused, mse, unused, sq_dist = common_terms
+    def _eval_fn(self, common_terms, x, uav, noisy_states):
+        pred, unused, mse, unused, sq_dist, uav_dist = common_terms
         ucb = pred + self._scaling() * (
             self.kappa * mse + self.gamma * np.sqrt(sq_dist))
         return np.asfortranarray(ucb)
 
-    def _eval_derivative(self, common_terms, x, noisy_states):
+    def _eval_derivative(self, common_terms, x, uav, noisy_states):
         x = np.atleast_2d(x)
-        pos = np.atleast_2d(noisy_states[0].position)
-        unused, pred_derivative, mse, mse_derivative, sq_dist = common_terms
+        pos = np.atleast_2d(noisy_states[uav].position)
+        unused, pred_derivative, mse, mse_derivative, sq_dist, uav_dist = \
+            common_terms
         ucb_derivative = pred_derivative + self._scaling() * (
             self.kappa * mse_derivative +
             self.gamma * (x - pos) / np.sqrt(np.maximum(sq_dist, 1e-60)))
@@ -349,26 +388,31 @@ class DUCB(DUCBBased):
 
 
 class PDUCB(DUCBBased):
-    def __init__(self, predictor, kappa, scaling, gamma, epsilon):
+    def __init__(self, predictor, kappa, scaling, gamma, epsilon, rho):
         super(PDUCB, self).__init__(predictor)
         self.kappa = kappa
         self.scaling = scaling
         self.gamma = gamma
         self.epsilon = epsilon
         self.tau = self.epsilon
+        self.rho = rho
 
-    def _eval_fn(self, common_terms, x, noisy_states):
-        pred, unused, mse, unused, sq_dist = common_terms
+    def _eval_fn(self, common_terms, x, uav, noisy_states):
+        pred, unused, mse, unused, sq_dist, uav_dist = common_terms
         pred = np.maximum(0, pred)
         epred = np.exp(-pred / self.tau)
         ucb = np.log(pred + self.epsilon) * (1 - epred) + epred * np.log(
             self.epsilon) + self._scaling() * (
             self.kappa * (mse - self.predictor.noise_var) +
-            self.gamma * sq_dist)
+            self.gamma * sq_dist + self.rho * np.mean(uav_dist))
         return np.asfortranarray(ucb)
 
-    def _eval_derivative(self, common_terms, x, noisy_states):
-        pred, pred_derivative, mse, mse_derivative, sq_dist = common_terms
+    def _eval_derivative(self, common_terms, x, uav, noisy_states):
+        pred, pred_derivative, mse, mse_derivative, sq_dist, uav_dist = \
+            common_terms
+        uav_dist_der = 2 * np.mean(
+            [x - s.position for s in noisy_states
+             if s is not noisy_states[uav]])
 
         pred = np.maximum(0, pred)
         epred = np.exp(-pred / self.tau)
@@ -378,7 +422,8 @@ class PDUCB(DUCBBased):
                 np.log(pred + self.epsilon) - np.log(self.epsilon))) + \
             self._scaling() * (
                 self.kappa * mse_derivative +
-                self.gamma * 2 * (x - noisy_states[0].position))
+                self.gamma * 2 * (x - noisy_states[uav].position) +
+                self.rho * uav_dist_der)
         return np.asfortranarray(ucb_derivative)
 
     def _scaling(self):
@@ -397,8 +442,8 @@ class GO(DUCBBased):
         super(GO, self).__init__(predictor)
         self.gamma = gamma
 
-    def _eval_fn(self, common_terms, x, noisy_states):
-        pred, unused, mse, unused, sq_dist = common_terms
+    def _eval_fn(self, common_terms, x, uav, noisy_states):
+        pred, unused, mse, unused, sq_dist, uav_dist = common_terms
         if hasattr(self.predictor, 'y_bv'):
             eta = self.predictor.y_bv.max()
         else:
@@ -409,8 +454,8 @@ class GO(DUCBBased):
             std * normdist.pdf((pred - eta) / std) + self.gamma * sq_dist
         return np.asfortranarray(go)
 
-    def _eval_derivative(self, common_terms, x, noisy_states):
-        pred, pred_der, mse, mse_der, sq_dist = common_terms
+    def _eval_derivative(self, common_terms, x, uav, noisy_states):
+        pred, pred_der, mse, mse_der, sq_dist, uav_dist = common_terms
         if hasattr(self.predictor, 'y_bv'):
             eta = self.predictor.y_bv.max()
         else:
@@ -428,7 +473,7 @@ class GO(DUCBBased):
         return np.asfortranarray(
             pred_der * cdf + pred * cdf_der - eta * cdf_der +
             std_der * pdf + std * pdf_der +
-            self.gamma * 2 * (x - noisy_states[0].position))
+            self.gamma * 2 * (x - noisy_states[uav].position))
 
 
 class FollowWaypoints(object):
@@ -451,25 +496,36 @@ class FollowWaypoints(object):
             observer.step(noisy_states)
 
         if self.velocity_controller.targets is None:
-            update_targets = True
+            update_targets = np.ones(len(noisy_states), dtype=bool)
+            self.velocity_controller.targets = np.array(
+                [s.position for s in noisy_states])
         else:
-            dist_to_target = norm(
-                self.velocity_controller.targets[0] - noisy_states[0].position)
+            dist_to_target = np.apply_along_axis(
+                norm, 1, self.velocity_controller.targets - np.array(
+                    [s.position for s in noisy_states]))
             update_targets = dist_to_target < self.target_precision
         if self.num_step < 2:
-            update_targets = False
-        if update_targets:
+            update_targets.fill(False)
+        if np.any(update_targets):
             for observer in self.observers:
                 observer.target_reached()
-            nt = np.asarray(self.target_chooser.new_targets(noisy_states))
-            if self.velocity_controller.targets is not None:
-                change = np.sqrt(np.sum(np.square(
-                    self.velocity_controller.targets - nt), axis=1))
-                if np.all(change < self.target_precision):
-                    raise GotStuckError()
-            self.velocity_controller.targets = nt
+        new_targets = []
+        for uav in np.where(update_targets)[0]:
+            nt = np.asarray(self.target_chooser.new_target(uav, noisy_states))
+            new_targets.append(nt)
+            self.velocity_controller.targets[uav] = nt
+
+        if np.any(update_targets):
             logger.info('Updated target {}'.format(
                 self.velocity_controller.targets))
+
+        if self.velocity_controller.targets is not None and np.all(
+                update_targets):
+            change = np.sqrt(np.sum(np.square(
+                self.velocity_controller.targets - np.asarray(
+                    new_targets)), axis=1))
+            if np.all(change < self.target_precision):
+                raise GotStuckError()
 
 
 class GotStuckError(Exception):
@@ -482,6 +538,7 @@ class BatchPredictionUpdater(object):
         self.plume_recorder = plume_recorder
         self.last_update = 0
         self.noisy_positions = None
+        self.on_hold = False
 
     def step(self, noisy_states):
         if self.noisy_positions is None:
@@ -491,18 +548,27 @@ class BatchPredictionUpdater(object):
 
         self.noisy_positions.append([s.position for s in noisy_states])
         can_do_first_training = self.plume_recorder.num_recorded > 1
-        if not self.predictor.trained and can_do_first_training:
+        do_update = not self.predictor.trained and can_do_first_training and \
+            not self.on_hold
+        if do_update:
             self.update_prediction()
 
     def target_reached(self):
-        if self.predictor.trained:
+        if self.predictor.trained and not self.on_hold:
             self.update_prediction()
 
-    def update_prediction(self):
-        self.predictor.add_observations(
-            self.noisy_positions.data[self.last_update:, 0, :],
-            self.plume_recorder.plume_measurements[0, self.last_update:, None])
-        self.last_update = len(self.noisy_positions.data)
+    def update_prediction(self, uavs=None):
+        if uavs is None:
+            uavs = range(len(self.plume_recorder.plume_measurements))
+        for uav in uavs:
+            self.predictor.add_observations(
+                self.noisy_positions.data[self.last_update:, uav, :],
+                self.plume_recorder.plume_measurements[
+                    uav, self.last_update:, None])
+            self.last_update = len(self.noisy_positions.data)
+
+    def get_uncommited_measurements(self):
+        return self.plume_recorder.plume_measurements[:, self.last_update:]
 
 
 class TargetMeasurementPredictionUpdater(object):
