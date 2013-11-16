@@ -257,6 +257,7 @@ class SurroundUntilFound(object):
         self.heights = heights
         self.threshold_factor = threshold_factor
         self.lap = 0
+        self.lap_starts = None
         self.target_chooser_factory = target_chooser_factory
         self.target_chooser = None
 
@@ -267,19 +268,21 @@ class SurroundUntilFound(object):
                 self.target_chooser.append(
                     self.target_chooser_factory.create(self.heights[self.lap]))
                 self.lap += 1
+        if self.lap_starts is None:
+            self.lap_starts = len(noisy_states) * [0]
 
         target = self.target_chooser[uav].new_target(
             noisy_states[uav].position)
         while target is None:
-            self.lap += 1
             if self.lap >= len(self.heights):
                 return None
             measurements = \
-                self.prediction_updater.get_uncommited_measurements()[uav]
+                self.prediction_updater.get_uncommited_measurements(uav)
             threshold = self.threshold_factor * np.std(measurements)
             if measurements.max() > threshold:
                 logger.info('Plume found')
                 self.prediction_updater.update_prediction([uav])
+                self.prediction_updater.dismiss_measurements(np.s_[:])
                 self.prediction_updater.on_hold = False
                 self.lap = len(self.heights)
                 return None
@@ -288,6 +291,8 @@ class SurroundUntilFound(object):
                 self.heights[self.lap])
             target = self.target_chooser[uav].new_target(
                 noisy_states[uav].position)
+            self.lap += 1
+            self.prediction_updater.dismiss_measurements([uav])
         return target
 
     def get_effective_area(self):
@@ -534,15 +539,22 @@ class GotStuckError(Exception):
     pass
 
 
+class TrainDataSizeLimitReachedError(Exception):
+    pass
+
+
 class BatchPredictionUpdater(object):
-    def __init__(self, predictor, plume_recorder):
+    def __init__(self, predictor, plume_recorder, max_train_size=3000):
         self.predictor = predictor
         self.plume_recorder = plume_recorder
-        self.last_update = 0
+        self.max_train_size = max_train_size
+        self.last_update = None
         self.noisy_positions = None
         self.on_hold = False
 
     def step(self, noisy_states):
+        if self.last_update is None:
+            self.last_update = np.array(len(noisy_states) * [0])
         if self.noisy_positions is None:
             self.noisy_positions = GrowingArray(
                 (len(noisy_states), 3),
@@ -560,17 +572,24 @@ class BatchPredictionUpdater(object):
             self.update_prediction()
 
     def update_prediction(self, uavs=None):
+        is_limit_reached = self.predictor.y_train is not None and \
+            len(self.predictor.y_train.data) > self.max_train_size
+        if is_limit_reached:
+            raise TrainDataSizeLimitReachedError()
         if uavs is None:
             uavs = range(len(self.plume_recorder.plume_measurements))
         for uav in uavs:
             self.predictor.add_observations(
-                self.noisy_positions.data[self.last_update:, uav, :],
-                self.plume_recorder.plume_measurements[
-                    uav, self.last_update:, None])
-            self.last_update = len(self.noisy_positions.data)
+                self.noisy_positions.data[self.last_update[uav]:, uav, :],
+                self.get_uncommited_measurements(uav)[:, None])
+        self.dismiss_measurements(uavs)
 
-    def get_uncommited_measurements(self):
-        return self.plume_recorder.plume_measurements[:, self.last_update:]
+    def get_uncommited_measurements(self, uav):
+        return self.plume_recorder.plume_measurements[
+            uav, self.last_update[uav]:]
+
+    def dismiss_measurements(self, uav):
+        self.last_update[uav] = len(self.noisy_positions.data)
 
 
 class TargetMeasurementPredictionUpdater(object):
