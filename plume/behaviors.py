@@ -404,7 +404,7 @@ class PDUCB(DUCBBased):
         ucb = np.log(pred + self.epsilon) * (1 - epred) + epred * np.log(
             self.epsilon) + self._scaling() * (
             self.kappa * (mse - self.predictor.noise_var) +
-            self.gamma * sq_dist + self.rho * np.mean(uav_dist))
+            self.gamma * sq_dist + self.rho * np.nan_to_num(np.mean(uav_dist)))
         return np.asfortranarray(ucb)
 
     def _eval_derivative(self, common_terms, x, uav, noisy_states):
@@ -495,6 +495,10 @@ class FollowWaypoints(object):
         for observer in self.observers:
             observer.step(noisy_states)
 
+        old_targets = None
+        if self.velocity_controller.targets is not None:
+            old_targets = self.velocity_controller.targets.copy()
+
         if self.velocity_controller.targets is None:
             update_targets = np.ones(len(noisy_states), dtype=bool)
             self.velocity_controller.targets = np.array(
@@ -519,11 +523,9 @@ class FollowWaypoints(object):
             logger.info('Updated target {}'.format(
                 self.velocity_controller.targets))
 
-        if self.velocity_controller.targets is not None and np.all(
-                update_targets):
-            change = np.sqrt(np.sum(np.square(
-                self.velocity_controller.targets - np.asarray(
-                    new_targets)), axis=1))
+        if old_targets is not None and np.all(update_targets):
+            change = np.sqrt(np.sum(np.square(old_targets - np.asarray(
+                new_targets)), axis=1))
             if np.all(change < self.target_precision):
                 raise GotStuckError()
 
