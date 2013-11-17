@@ -124,6 +124,16 @@ class AcquisitionFnTargetChooser(object):
             pgtol=1e-10, factr=1e2)
 
         idx = np.argmax(self.acquisition_fn.predictor.y_train.data)
+        x0 = np.asarray(noisy_states[uav].position)
+        for dx in 5 * rnd.randn(5):
+            x2, val2, unused = fmin_l_bfgs_b(
+                NegateFn(self.acquisition_fn).eval_with_derivative, x0 + dx,
+                args=(uav, noisy_states,), bounds=self.get_effective_area(),
+                pgtol=1e-10, factr=1e2)
+            if val2 < val:
+                x = x2
+
+        idx = np.argmax(self.acquisition_fn.predictor.y_train.data)
         x0 = self.acquisition_fn.predictor.x_train.data[idx]
         for dx in 5 * rnd.randn(5):
             x2, val2, unused = fmin_l_bfgs_b(
