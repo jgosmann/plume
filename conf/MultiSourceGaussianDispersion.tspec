@@ -5,7 +5,7 @@ __cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Testing algorithm with nois
 configfile = conf/noise.py.in
 
 acq_fn = """('behaviors', 'PDUCB', (), dict(
-    kappa=kappa, scaling=scaling, gamma=gamma, epsilon=1e-30))"""
+    kappa=kappa, scaling=scaling, gamma=gamma, rho=0, epsilon=1e-30))"""
 kappa = 1.25e9
 scaling = "'auto'"
 gamma = -1e-7
