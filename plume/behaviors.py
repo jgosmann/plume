@@ -415,9 +415,9 @@ class PDUCB(DUCBBased):
     def _eval_derivative(self, common_terms, x, uav, noisy_states):
         pred, pred_derivative, mse, mse_derivative, sq_dist, uav_dist = \
             common_terms
-        uav_dist_der = 2 * np.mean(
+        uav_dist_der = np.nan_to_num(2 * np.mean(
             [x - s.position for s in noisy_states
-             if s is not noisy_states[uav]])
+             if s is not noisy_states[uav]]))
 
         pred = np.maximum(0, pred)
         epred = np.exp(-pred / self.tau)
