@@ -289,6 +289,7 @@ class PlumeVisualizer(HasTraits):
         extent = [-140, 140, -140, 140, -80, 0]
         ax = mlab.axes(extent=extent, xlabel='', ylabel='', zlabel='')
         ax.axes.label_format = '%2.0f'
+        ax.label_text_property.italic = False
 
         x, y = np.meshgrid([-140, 140], [-140, 140], indexing='ij')
         mlab.surf(x, y, np.zeros_like(x, 'd'), color=(1.0, 1.0, 1.0))
