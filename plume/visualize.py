@@ -286,6 +286,10 @@ class PlumeVisualizer(HasTraits):
         except:
             traceback.print_exc()
         self._plot_plume()
+        ax = mlab.axes(
+            extent=[-140, 140, -140, 140, -80, 0], xlabel='', ylabel='',
+            zlabel='')
+        ax.axes.label_format = '%2.0f'
 
         mlab.sync_camera(self.prediction.mayavi_scene, self.mse.mayavi_scene)
         mlab.sync_camera(self.mse.mayavi_scene, self.prediction.mayavi_scene)
