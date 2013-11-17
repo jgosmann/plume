@@ -140,6 +140,11 @@ class TaskPlumeRecorder(GeneralRecorder):
     def _record_kernel_params(self):
         self._kernel_params.append([self.predictor.kernel.params])
 
+    def plume_found(self):
+        self.fileh.createArray(
+            '/', 'plume_found_step', [self.num_recorded],
+            title='Step in which the plume was considered to be found.')
+
     def prune(self):
         self.fileh.removeNode(self._plume_measurements)
         self.fileh.removeNode(self._kernel_params)

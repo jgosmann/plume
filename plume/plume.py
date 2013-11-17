@@ -94,9 +94,10 @@ def do_simulation_run(trial, output_filename, conf, client):
             else:
                 tc_factory = behaviors.SurroundAreaFactory(
                     conf['area'], conf['margin'])
-            target_chooser = behaviors.ChainTargetChoosers([
-                behaviors.SurroundUntilFound(
-                    updater, tc_factory), acq_behavior])
+            surrounder = behaviors.SurroundUntilFound(updater, tc_factory)
+            surrounder.observers.append(recorder)
+            target_chooser = behaviors.ChainTargetChoosers(
+                [surrounder, acq_behavior])
             maxv = 4
         else:
             target_chooser = behaviors.ChainTargetChoosers([

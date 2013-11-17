@@ -270,6 +270,7 @@ class SurroundUntilFound(object):
         self.lap_starts = None
         self.target_chooser_factory = target_chooser_factory
         self.target_chooser = None
+        self.observers = []
 
     def new_target(self, uav, noisy_states):
         if self.target_chooser is None:
@@ -291,6 +292,8 @@ class SurroundUntilFound(object):
             threshold = self.threshold_factor * np.std(measurements)
             if measurements.max() > threshold:
                 logger.info('Plume found')
+                for observer in self.observers:
+                    observer.plume_found()
                 self.prediction_updater.update_prediction([uav])
                 self.prediction_updater.dismiss_measurements(np.s_[:])
                 self.prediction_updater.on_hold = False
