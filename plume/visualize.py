@@ -1,6 +1,7 @@
 from __future__ import division
 
 import os
+import traceback
 os.environ['ETS_TOOLKIT'] = 'qt4'
 
 import argparse
@@ -28,7 +29,6 @@ from tvtk.util.ctf import ColorTransferFunction, PiecewiseFunction, set_lut
 import vtk
 
 from nputil import meshgrid_nd
-import prediction
 from prediction import predict_on_volume
 import recorder
 
@@ -244,6 +244,7 @@ class PlumeVisualizer(HasTraits):
             positions, mse, self.prediction_cutoff,
             figure=self.mse.mayavi_scene)
 
+    def _plot_plume(self):
         area = self.conf['area']
         ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
             area, (20, 20, 20))]
@@ -280,7 +281,11 @@ class PlumeVisualizer(HasTraits):
         self.truth.scene.interactor.interactor_style = \
             RotateAroundZInteractor()
 
-        self._plot_fit()
+        try:
+            self._plot_fit()
+        except:
+            traceback.print_exc()
+        self._plot_plume()
 
         mlab.sync_camera(self.prediction.mayavi_scene, self.mse.mayavi_scene)
         mlab.sync_camera(self.mse.mayavi_scene, self.prediction.mayavi_scene)
