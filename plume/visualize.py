@@ -109,7 +109,7 @@ class RotateAroundZInteractor(tvtk.InteractorStyleTrackballCamera):
 
 class ThinToolbarEditor(MayaviScene):
     def __init__(self, *args, **kwargs):
-        MayaviScene.__init__(self, *args, **kwargs)
+        super(ThinToolbarEditor, self).__init__(*args, **kwargs)
 
     def _get_tool_bar_manager(self):
         tbm = ToolBarManager(*self.actions)
