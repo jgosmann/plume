@@ -200,7 +200,7 @@ class PlumeVisualizer(HasTraits):
                         'mse', show_label=False,
                         editor=SceneEditor(scene_class=ThinToolbarEditor)),
                     Item(
-                        'truth', show_label=False,
+                        'truth', show_label=False, width=300,
                         editor=SceneEditor(scene_class=ThinToolbarEditor))
                 )
             )
@@ -290,6 +290,8 @@ class PlumeVisualizer(HasTraits):
         self.truth.scene.interactor.interactor_style = \
             RotateAroundZInteractor()
 
+        self.truth.scene.anti_aliasing_frames = 2
+
         try:
             self._plot_fit()
         except:
@@ -314,10 +316,11 @@ class PlumeVisualizer(HasTraits):
         mlab.sync_camera(self.mse.mayavi_scene, self.truth.mayavi_scene)
         mlab.sync_camera(self.truth.mayavi_scene, self.mse.mayavi_scene)
         mlab.view(
-            azimuth=135, elevation=135, distance=800, roll=-120,
+            azimuth=135, elevation=135, distance=1200, roll=-120,
             figure=self.prediction.mayavi_scene)
         self.truth.scene.interactor.interactor_style.move(
             self.truth.camera, [0, -20])
+        mlab.move(up=-30)
 
     @current_figure_as_default
     def plot_uav_trajectory(self, positions, figure):
