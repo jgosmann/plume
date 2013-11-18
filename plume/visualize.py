@@ -374,7 +374,6 @@ class PlumeVisualizer(HasTraits):
     @staticmethod
     def _set_cutoff(volume, cutoff):
         range_min, range_max = volume.current_range
-        vmin = range_min + cutoff * (range_max - range_min)
 
         otf = PiecewiseFunction()
         otf.add_point(range_min, 0.0)
