@@ -23,6 +23,7 @@ predictor = ('prediction', 'OnlineGP', (1e-10, 3500))
 
 noise_search = {search}
 kappa = {kappa}
+rho = {rho}
 scaling = {scaling}
 gamma = {gamma}
 acquisition_fn = {acq_fn}

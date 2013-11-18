@@ -1,0 +1,13 @@
+experiment = MultiHeli
+task = TaskPlumeMultiHeliMultiSourceGaussianDispersionDefaultControls
+
+__cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Testing multi UAVs.' python plume/plume.py -o {__name__!q} -c {configfile!t} -t {__repeat__} -q"""
+configfile = conf/noise.py.in
+
+acq_fn = """('behaviors', 'PDUCB', (), dict(
+    kappa=kappa, scaling=scaling, gamma=gamma, rho=rho, epsilon=1e-30))"""
+kappa = 1.25e9
+scaling = "'auto'"
+gamma = -1e-7
+_search = "'complete'", "'wind'"
+_rho = 0, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2
