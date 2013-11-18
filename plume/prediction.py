@@ -565,7 +565,9 @@ class OnlineGP(object):
         growing_array.extend(initial_data)
         return growing_array
 
-    def predict(self, x, eval_MSE=False, eval_derivatives=False):
+    def predict(
+            self, x, eval_MSE=False, eval_derivatives=False,
+            complete_cov=False):
         if eval_derivatives:
             K_new_vs_old, K_new_vs_old_derivative = self.kernel(
                 x, self.x_train.data, np.zeros(len(x)), self.y_train.data,
@@ -578,11 +580,19 @@ class OnlineGP(object):
         pred = np.dot(K_new_vs_old, svs)
         if eval_MSE:
             mse_svs = np.dot(self.K_inv, K_new_vs_old.T)
-            mse = np.maximum(
-                self.noise_var,
-                self.noise_var + self.kernel.diag(
-                    x, x, np.zeros(len(x)), np.zeros(len(x))) - np.einsum(
-                    'ij,ji->i', K_new_vs_old, mse_svs))
+            if complete_cov:
+                mse = self.kernel(
+                    x, x, np.zeros(len(x)), np.zeros(len(x))) - np.dot(
+                    K_new_vs_old, mse_svs)
+                diag = np.diag_indices(len(mse))
+                mse[diag] = np.maximum(0, mse[diag])
+                mse[diag] += self.noise_var
+            else:
+                mse = np.maximum(
+                    self.noise_var,
+                    self.noise_var + self.kernel.diag(
+                        x, x, np.zeros(len(x)), np.zeros(len(x))) - np.einsum(
+                        'ij,ji->i', K_new_vs_old, mse_svs))
 
         if eval_derivatives:
             pred_derivative = np.einsum(
