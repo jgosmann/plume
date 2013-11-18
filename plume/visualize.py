@@ -295,10 +295,16 @@ class PlumeVisualizer(HasTraits):
         except:
             traceback.print_exc()
         self._plot_plume()
-        extent = [-140, 140, -140, 140, -80, 0]
+        extent = [-150, 140, -140, 150, -85, 0]
         ax = mlab.axes(extent=extent, xlabel='', ylabel='', zlabel='')
+        ax.axes.number_of_labels = 3
+        ax.axes.corner_offset = 0.05
         ax.axes.label_format = '%2.0f'
         ax.label_text_property.italic = False
+        ax.label_text_property.bold = False
+        ax.axes.font_factor = 2
+        ax.axes.ranges = [-140, 140, -140, 140, -80, 0]
+        ax.axes.use_ranges = True
 
         x, y = np.meshgrid([-140, 140], [-140, 140], indexing='ij')
         mlab.surf(x, y, np.zeros_like(x, 'd'), color=(1.0, 1.0, 1.0))
