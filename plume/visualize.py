@@ -179,6 +179,8 @@ class PlumeVisualizer(HasTraits):
     prediction_cutoff = Range(0.0, 1.0, 0.7)
     mse_cutoff = Range(0.0, 1.0, 0.5)
 
+    plain = Bool(False)
+
     view = View(
         HSplit(
             VGroup(
@@ -200,7 +202,7 @@ class PlumeVisualizer(HasTraits):
             )
         ), resizable=True, height=1.0, width=1.0)
 
-    def __init__(self, data, end=None):
+    def __init__(self, data, end=None, plain=False):
         HasTraits.__init__(self)
         self.conf = data.root.conf[0]
         self.render_prediction_with_preview = PreviewEnabledRenderingFunction(
@@ -212,6 +214,7 @@ class PlumeVisualizer(HasTraits):
             self.end = len(self.data.root.positions)
         else:
             self.end = end
+        self.plain = plain
 
         self._init_scene(self.prediction)
         self._init_scene(self.mse)
@@ -233,7 +236,8 @@ class PlumeVisualizer(HasTraits):
         scene.mayavi_scene.children[0].add_child(
             Outline(manual_bounds=True, bounds=area.flatten()))
 
-        mlab.title(title, figure=scene.mayavi_scene)
+        if not self.plain:
+            mlab.title(title, figure=scene.mayavi_scene)
 
     def _plot_fit(self):
         pred, mse, positions = self.calc_estimation(self.data)
@@ -255,9 +259,10 @@ class PlumeVisualizer(HasTraits):
             np.column_stack((x.flat, y.flat, z.flat))).reshape(x.shape)
         self._truth_volume = self.plot_volume2(
             (x, y, z), values, 0.1, figure=self.truth.mayavi_scene)
-        mlab.points3d(
-            *self.data.root.sample_locations.read().T, scale_factor=5,
-            color=(0.7, 0.0, 0.0), figure=self.truth.mayavi_scene)
+        if not self.plain:
+            mlab.points3d(
+                *self.data.root.sample_locations.read().T, scale_factor=5,
+                color=(0.7, 0.0, 0.0), figure=self.truth.mayavi_scene)
 
     # FIXME think of better name
     @classmethod
@@ -302,21 +307,23 @@ class PlumeVisualizer(HasTraits):
             azimuth=135, elevation=135, distance=600, roll=-120,
             figure=self.prediction.mayavi_scene)
 
-    @classmethod
     @current_figure_as_default
-    def plot_uav_trajectory(cls, positions, figure):
+    def plot_uav_trajectory(self, positions, figure):
+        if self.plain:
+            opacity = 0.0
+        else:
+            opacity = 1.0
         mlab.plot3d(
             *positions.T, tube_radius=1, line_width=0,
-            color=cls.trajectory_color, figure=figure)
+            color=self.trajectory_color, opacity=opacity, figure=figure)
         mlab.points3d(
-            *positions[-1], scale_factor=5, color=cls.marker_color,
-            figure=figure)
+            *positions[-1], scale_factor=5, color=self.marker_color,
+            opacity=opacity, figure=figure)
 
-    @classmethod
     @current_figure_as_default
-    def plot_uav_trajectories(cls, trajectories, figure):
+    def plot_uav_trajectories(self, trajectories, figure):
         for uav_positions in trajectories:
-            cls.plot_uav_trajectory(uav_positions, figure)
+            self.plot_uav_trajectory(uav_positions, figure)
 
     def calc_estimation(self, data):
         predictor = recorder.load_obj(data.root.gp)
@@ -398,6 +405,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-t', nargs=1, type=int, help='Number of steps to visualize.')
+    parser.add_argument(
+        '-p', '--plain', action='store_true', help='Show only plume')
     parser.add_argument('filename', nargs=1, type=str)
     args = parser.parse_args()
 
@@ -405,5 +414,5 @@ if __name__ == '__main__':
         end = None
         if args.t is not None:
             end = args.t[0]
-        visualizer = PlumeVisualizer(data, end)
+        visualizer = PlumeVisualizer(data, end, args.plain)
         visualizer.configure_traits()
