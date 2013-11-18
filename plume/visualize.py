@@ -53,7 +53,8 @@ class RotateAroundZInteractor(tvtk.InteractorStyleTrackballCamera):
         elif self.state != 0:
             tvtk.InteractorStyleTrackballCamera.on_mouse_move(self)
             self.elevation = mlab.view()[1]
-            self.roll = self.calc_current_roll()
+            self.roll = self.calc_current_roll(
+                self.current_renderer.active_camera)
 
     def rotate(self):
             rwi = self.interactor
@@ -63,6 +64,10 @@ class RotateAroundZInteractor(tvtk.InteractorStyleTrackballCamera):
             mouse_move = rwi.event_position - rwi.last_event_position
             size_factor = -20.0 / self.current_renderer.render_window.size
             move = mouse_move * size_factor * self.motion_factor
+            self.move(camera, move)
+
+    def move(self, camera, move):
+            rwi = self.interactor
 
             view_dir = camera.focal_point - camera.position
             view_dir /= norm(view_dir)
@@ -93,12 +98,11 @@ class RotateAroundZInteractor(tvtk.InteractorStyleTrackballCamera):
 
             self.elevation += move[1]
             camera.elevation(self.elevation - mlab.view()[1])
-            camera.roll(self.roll - self.calc_current_roll())
+            camera.roll(self.roll - self.calc_current_roll(camera))
 
             rwi.render()
 
-    def calc_current_roll(self):
-        camera = self.current_renderer.active_camera
+    def calc_current_roll(self, camera):
         n = np.cross(camera.focal_point - camera.position, camera.view_up)
         n /= norm(n)
         roll = np.arccos(camera.view_up[2] / norm(np.array(
@@ -304,8 +308,10 @@ class PlumeVisualizer(HasTraits):
         mlab.sync_camera(self.mse.mayavi_scene, self.truth.mayavi_scene)
         mlab.sync_camera(self.truth.mayavi_scene, self.mse.mayavi_scene)
         mlab.view(
-            azimuth=135, elevation=135, distance=600, roll=-120,
+            azimuth=135, elevation=135, distance=800, roll=-120,
             figure=self.prediction.mayavi_scene)
+        self.truth.scene.interactor.interactor_style.move(
+            self.truth.camera, [0, -20])
 
     @current_figure_as_default
     def plot_uav_trajectory(self, positions, figure):
