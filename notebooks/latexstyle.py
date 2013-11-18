@@ -31,3 +31,11 @@ def setup():
 
     mpl.rcParams['figure.dpi'] = 160
     mpl.rcParams['figure.figsize'] = (5.7874 * 0.925, 4.3406 * 0.925)
+
+
+def style_axes(*axes):
+    for ax in axes:
+        ax.spines.get('right').set_visible(False)
+        ax.spines.get('top').set_visible(False)
+        ax.xaxis.set_ticks_position('bottom')
+        ax.yaxis.set_ticks_position('left')
