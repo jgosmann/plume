@@ -247,7 +247,7 @@ class PlumeVisualizer(HasTraits):
     def _plot_plume(self):
         area = self.conf['area']
         ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
-            area, (20, 20, 20))]
+            area, (29, 29, 9))]
         x, y, z = meshgrid_nd(*ogrid)
         values = griddata(
             self.data.root.gt_locations.read(),
@@ -323,15 +323,46 @@ class PlumeVisualizer(HasTraits):
         area = data.root.conf[0]['area']
         return predict_on_volume(predictor, area, [30, 30, 20])
 
-    @staticmethod
+    @classmethod
     @current_figure_as_default
-    def plot_volume((x, y, z), values, figure, vmin=None, vmax=None):
-        volume = mlab.pipeline.volume(
-            mlab.pipeline.scalar_field(
-                x, y, z, values, figure=figure, colormap='Reds'),
-            vmin=vmin, vmax=vmax, figure=figure)
-        volume.lut_manager.show_scalar_bar = True
+    def plot_volume(cls, (x, y, z), values, figure, vmin=None, vmax=None):
+        if vmin is None:
+            vmin = values.min()
+        if vmax is None:
+            vmax = values.max()
+
+        sf = mlab.pipeline.scalar_field(
+            x, y, z, values, figure=figure, colormap='Reds')
+        volume = mlab.pipeline.volume(sf, vmin=vmin, vmax=vmax, figure=figure)
+
+        im1 = mlab.imshow(
+            np.max(values, axis=1), vmin=vmin, vmax=vmax, figure=figure)
+        im1.actor.orientation = [90, 0, 0]
+        im1.actor.position = [5, -140, -35]
+        im1.actor.scale = [10, 10, 0]
+
+        im2 = mlab.imshow(
+            np.max(values, axis=0), vmin=vmin, vmax=vmax, figure=figure)
+        im2.actor.orientation = [90, 90, 0]
+        im2.actor.position = [140, 5, -35]
+        im2.actor.scale = [10, 10, 0]
+
+        cls._color_im_planes([im1, im2])
         return volume
+
+    @staticmethod
+    def _color_im_planes(im_planes):
+        ctf = ColorTransferFunction()
+        ctf.range = (0.0, 1.0)
+        ctf.add_rgb_point(0.0, 1.0, 1.0, 1.0)
+        ctf.add_rgb_point(1.0, 1.0, 0.275, 0.0)
+
+        for ip in im_planes:
+            lut = ip.module_manager.scalar_lut_manager.lut.table.to_array()
+            for i in xrange(len(lut)):
+                c = 255 * np.asarray(ctf.get_color(float(i) / (len(lut) - 1)))
+                lut[i] = np.concatenate((c, (255,)))
+            ip.module_manager.scalar_lut_manager.lut.table = lut
 
     @staticmethod
     def _set_cutoff(volume, cutoff):
@@ -340,17 +371,14 @@ class PlumeVisualizer(HasTraits):
 
         otf = PiecewiseFunction()
         otf.add_point(range_min, 0.0)
-        otf.add_point(vmin, 0.0)
         otf.add_point(range_max, 0.2)
         volume._otf = otf
         volume.volume_property.set_scalar_opacity(otf)
 
         ctf = ColorTransferFunction()
         ctf.range = volume.current_range
-        ctf.add_rgb_point(range_min, 1.0, 1.0, 1.0)
-        ctf.add_rgb_point((range_min + range_max) * (1.0 / 3.0), 0.0, 0.0, 1.0)
-        ctf.add_rgb_point((range_min + range_max) * (2.0 / 3.0), 1.0, 0.0, 1.0)
-        ctf.add_rgb_point(range_max, 1.0, 0.0, 0.0)
+        ctf.add_rgb_point(range_min, 1.0, 0.275, 0.0)
+        ctf.add_rgb_point(range_max, 1.0, 0.275, 0.0)
         volume._ctf = ctf
         volume.volume_property.set_color(ctf)
         set_lut(volume.lut_manager.lut, volume.volume_property)
