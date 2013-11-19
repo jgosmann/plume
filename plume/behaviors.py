@@ -279,6 +279,9 @@ class SurroundUntilFound(object):
                     self.target_chooser_factory.create(self.heights[self.lap]))
                 self.lap += 1
 
+        if self.lap >= len(self.heights):
+            return None
+
         target = self.target_chooser[uav].new_target(
             noisy_states[uav].position)
         while target is None and self.lap < len(self.heights):
