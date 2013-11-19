@@ -284,9 +284,7 @@ class SurroundUntilFound(object):
 
         target = self.target_chooser[uav].new_target(
             noisy_states[uav].position)
-        while target is None:
-            if self.lap >= len(self.heights):
-                return None
+        while target is None and self.lap < len(self.heights):
             measurements = \
                 self.prediction_updater.get_uncommited_measurements(uav)
             threshold = self.threshold_factor * np.std(measurements)
