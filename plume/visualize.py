@@ -1,6 +1,7 @@
 from __future__ import division
 
 import os
+import traceback
 os.environ['ETS_TOOLKIT'] = 'qt4'
 
 import argparse
@@ -28,7 +29,6 @@ from tvtk.util.ctf import ColorTransferFunction, PiecewiseFunction, set_lut
 import vtk
 
 from nputil import meshgrid_nd
-import prediction
 from prediction import predict_on_volume
 import recorder
 
@@ -53,7 +53,8 @@ class RotateAroundZInteractor(tvtk.InteractorStyleTrackballCamera):
         elif self.state != 0:
             tvtk.InteractorStyleTrackballCamera.on_mouse_move(self)
             self.elevation = mlab.view()[1]
-            self.roll = self.calc_current_roll()
+            self.roll = self.calc_current_roll(
+                self.current_renderer.active_camera)
 
     def rotate(self):
             rwi = self.interactor
@@ -63,6 +64,10 @@ class RotateAroundZInteractor(tvtk.InteractorStyleTrackballCamera):
             mouse_move = rwi.event_position - rwi.last_event_position
             size_factor = -20.0 / self.current_renderer.render_window.size
             move = mouse_move * size_factor * self.motion_factor
+            self.move(camera, move)
+
+    def move(self, camera, move):
+            rwi = self.interactor
 
             view_dir = camera.focal_point - camera.position
             view_dir /= norm(view_dir)
@@ -93,12 +98,11 @@ class RotateAroundZInteractor(tvtk.InteractorStyleTrackballCamera):
 
             self.elevation += move[1]
             camera.elevation(self.elevation - mlab.view()[1])
-            camera.roll(self.roll - self.calc_current_roll())
+            camera.roll(self.roll - self.calc_current_roll(camera))
 
             rwi.render()
 
-    def calc_current_roll(self):
-        camera = self.current_renderer.active_camera
+    def calc_current_roll(self, camera):
         n = np.cross(camera.focal_point - camera.position, camera.view_up)
         n /= norm(n)
         roll = np.arccos(camera.view_up[2] / norm(np.array(
@@ -109,7 +113,7 @@ class RotateAroundZInteractor(tvtk.InteractorStyleTrackballCamera):
 
 class ThinToolbarEditor(MayaviScene):
     def __init__(self, *args, **kwargs):
-        MayaviScene.__init__(self, *args, **kwargs)
+        super(ThinToolbarEditor, self).__init__(*args, **kwargs)
 
     def _get_tool_bar_manager(self):
         tbm = ToolBarManager(*self.actions)
@@ -179,6 +183,8 @@ class PlumeVisualizer(HasTraits):
     prediction_cutoff = Range(0.0, 1.0, 0.7)
     mse_cutoff = Range(0.0, 1.0, 0.5)
 
+    plain = Bool(False)
+
     view = View(
         HSplit(
             VGroup(
@@ -194,13 +200,13 @@ class PlumeVisualizer(HasTraits):
                         'mse', show_label=False,
                         editor=SceneEditor(scene_class=ThinToolbarEditor)),
                     Item(
-                        'truth', show_label=False,
+                        'truth', show_label=False, width=300,
                         editor=SceneEditor(scene_class=ThinToolbarEditor))
                 )
             )
         ), resizable=True, height=1.0, width=1.0)
 
-    def __init__(self, data, end=None):
+    def __init__(self, data, end=None, plain=False):
         HasTraits.__init__(self)
         self.conf = data.root.conf[0]
         self.render_prediction_with_preview = PreviewEnabledRenderingFunction(
@@ -212,6 +218,7 @@ class PlumeVisualizer(HasTraits):
             self.end = len(self.data.root.positions)
         else:
             self.end = end
+        self.plain = plain
 
         self._init_scene(self.prediction)
         self._init_scene(self.mse)
@@ -233,7 +240,8 @@ class PlumeVisualizer(HasTraits):
         scene.mayavi_scene.children[0].add_child(
             Outline(manual_bounds=True, bounds=area.flatten()))
 
-        mlab.title(title, figure=scene.mayavi_scene)
+        if not self.plain:
+            mlab.title(title, figure=scene.mayavi_scene)
 
     def _plot_fit(self):
         pred, mse, positions = self.calc_estimation(self.data)
@@ -244,9 +252,10 @@ class PlumeVisualizer(HasTraits):
             positions, mse, self.prediction_cutoff,
             figure=self.mse.mayavi_scene)
 
+    def _plot_plume(self):
         area = self.conf['area']
         ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
-            area, (20, 20, 20))]
+            area, (29, 29, 9))]
         x, y, z = meshgrid_nd(*ogrid)
         values = griddata(
             self.data.root.gt_locations.read(),
@@ -254,9 +263,10 @@ class PlumeVisualizer(HasTraits):
             np.column_stack((x.flat, y.flat, z.flat))).reshape(x.shape)
         self._truth_volume = self.plot_volume2(
             (x, y, z), values, 0.1, figure=self.truth.mayavi_scene)
-        mlab.points3d(
-            *self.data.root.sample_locations.read().T, scale_factor=5,
-            color=(0.7, 0.0, 0.0), figure=self.truth.mayavi_scene)
+        if not self.plain:
+            mlab.points3d(
+                *self.data.root.sample_locations.read().T, scale_factor=5,
+                color=(0.7, 0.0, 0.0), figure=self.truth.mayavi_scene)
 
     # FIXME think of better name
     @classmethod
@@ -280,65 +290,116 @@ class PlumeVisualizer(HasTraits):
         self.truth.scene.interactor.interactor_style = \
             RotateAroundZInteractor()
 
-        self._plot_fit()
+        self.truth.scene.anti_aliasing_frames = 2
+
+        try:
+            self._plot_fit()
+        except:
+            traceback.print_exc()
+        self._plot_plume()
+        extent = [-150, 140, -140, 150, -85, 0]
+        ax = mlab.axes(extent=extent, xlabel='', ylabel='', zlabel='')
+        ax.axes.number_of_labels = 3
+        ax.axes.corner_offset = 0.05
+        ax.axes.label_format = '%2.0f'
+        ax.label_text_property.italic = False
+        ax.label_text_property.bold = False
+        ax.axes.font_factor = 2
+        ax.axes.ranges = [-140, 140, -140, 140, -80, 0]
+        ax.axes.use_ranges = True
+
+        x, y = np.meshgrid([-140, 140], [-140, 140], indexing='ij')
+        mlab.surf(x, y, np.zeros_like(x, 'd'), color=(1.0, 1.0, 1.0))
 
         mlab.sync_camera(self.prediction.mayavi_scene, self.mse.mayavi_scene)
         mlab.sync_camera(self.mse.mayavi_scene, self.prediction.mayavi_scene)
         mlab.sync_camera(self.mse.mayavi_scene, self.truth.mayavi_scene)
         mlab.sync_camera(self.truth.mayavi_scene, self.mse.mayavi_scene)
         mlab.view(
-            azimuth=135, elevation=135, distance=600, roll=-120,
+            azimuth=135, elevation=135, distance=1200, roll=-120,
             figure=self.prediction.mayavi_scene)
+        self.truth.scene.interactor.interactor_style.move(
+            self.truth.camera, [0, -20])
+        mlab.move(up=-30)
 
-    @classmethod
     @current_figure_as_default
-    def plot_uav_trajectory(cls, positions, figure):
+    def plot_uav_trajectory(self, positions, figure):
+        if self.plain:
+            opacity = 0.0
+        else:
+            opacity = 1.0
         mlab.plot3d(
             *positions.T, tube_radius=1, line_width=0,
-            color=cls.trajectory_color, figure=figure)
+            color=self.trajectory_color, opacity=opacity, figure=figure)
         mlab.points3d(
-            *positions[-1], scale_factor=5, color=cls.marker_color,
-            figure=figure)
+            *positions[-1], scale_factor=5, color=self.marker_color,
+            opacity=opacity, figure=figure)
 
-    @classmethod
     @current_figure_as_default
-    def plot_uav_trajectories(cls, trajectories, figure):
+    def plot_uav_trajectories(self, trajectories, figure):
         for uav_positions in trajectories:
-            cls.plot_uav_trajectory(uav_positions, figure)
+            self.plot_uav_trajectory(uav_positions, figure)
 
     def calc_estimation(self, data):
         predictor = recorder.load_obj(data.root.gp)
         area = data.root.conf[0]['area']
         return predict_on_volume(predictor, area, [30, 30, 20])
 
-    @staticmethod
+    @classmethod
     @current_figure_as_default
-    def plot_volume((x, y, z), values, figure, vmin=None, vmax=None):
-        volume = mlab.pipeline.volume(
-            mlab.pipeline.scalar_field(
-                x, y, z, values, figure=figure, colormap='Reds'),
-            vmin=vmin, vmax=vmax, figure=figure)
-        volume.lut_manager.show_scalar_bar = True
+    def plot_volume(cls, (x, y, z), values, figure, vmin=None, vmax=None):
+        if vmin is None:
+            vmin = values.min()
+        if vmax is None:
+            vmax = values.max()
+
+        sf = mlab.pipeline.scalar_field(
+            x, y, z, values, figure=figure, colormap='Reds')
+        volume = mlab.pipeline.volume(sf, vmin=vmin, vmax=vmax, figure=figure)
+
+        im1 = mlab.imshow(
+            np.max(values, axis=1), vmin=vmin, vmax=vmax, figure=figure)
+        im1.actor.orientation = [90, 0, 0]
+        im1.actor.position = [5, -140, -35]
+        im1.actor.scale = [10, 10, 0]
+
+        im2 = mlab.imshow(
+            np.max(values, axis=0), vmin=vmin, vmax=vmax, figure=figure)
+        im2.actor.orientation = [90, 90, 0]
+        im2.actor.position = [140, 5, -35]
+        im2.actor.scale = [10, 10, 0]
+
+        cls._color_im_planes([im1, im2])
         return volume
+
+    @staticmethod
+    def _color_im_planes(im_planes):
+        ctf = ColorTransferFunction()
+        ctf.range = (0.0, 1.0)
+        ctf.add_rgb_point(0.0, 1.0, 1.0, 1.0)
+        ctf.add_rgb_point(1.0, 1.0, 0.275, 0.0)
+
+        for ip in im_planes:
+            lut = ip.module_manager.scalar_lut_manager.lut.table.to_array()
+            for i in xrange(len(lut)):
+                c = 255 * np.asarray(ctf.get_color(float(i) / (len(lut) - 1)))
+                lut[i] = np.concatenate((c, (255,)))
+            ip.module_manager.scalar_lut_manager.lut.table = lut
 
     @staticmethod
     def _set_cutoff(volume, cutoff):
         range_min, range_max = volume.current_range
-        vmin = range_min + cutoff * (range_max - range_min)
 
         otf = PiecewiseFunction()
         otf.add_point(range_min, 0.0)
-        otf.add_point(vmin, 0.0)
         otf.add_point(range_max, 0.2)
         volume._otf = otf
         volume.volume_property.set_scalar_opacity(otf)
 
         ctf = ColorTransferFunction()
         ctf.range = volume.current_range
-        ctf.add_rgb_point(range_min, 1.0, 1.0, 1.0)
-        ctf.add_rgb_point((range_min + range_max) * (1.0 / 3.0), 0.0, 0.0, 1.0)
-        ctf.add_rgb_point((range_min + range_max) * (2.0 / 3.0), 1.0, 0.0, 1.0)
-        ctf.add_rgb_point(range_max, 1.0, 0.0, 0.0)
+        ctf.add_rgb_point(range_min, 1.0, 0.275, 0.0)
+        ctf.add_rgb_point(range_max, 1.0, 0.275, 0.0)
         volume._ctf = ctf
         volume.volume_property.set_color(ctf)
         set_lut(volume.lut_manager.lut, volume.volume_property)
@@ -358,6 +419,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-t', nargs=1, type=int, help='Number of steps to visualize.')
+    parser.add_argument(
+        '-p', '--plain', action='store_true', help='Show only plume')
     parser.add_argument('filename', nargs=1, type=str)
     args = parser.parse_args()
 
@@ -365,5 +428,5 @@ if __name__ == '__main__':
         end = None
         if args.t is not None:
             end = args.t[0]
-        visualizer = PlumeVisualizer(data, end)
+        visualizer = PlumeVisualizer(data, end, args.plain)
         visualizer.configure_traits()

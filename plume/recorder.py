@@ -38,7 +38,7 @@ class GeneralRecorder(object):
             title='Reference samples (num locations)')
 
         ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
-            area, [20, 20, 10])]
+            area, [29, 29, 9])]
         x, y, z = meshgrid_nd(*ogrid)
         locations = np.column_stack((x.flat, y.flat, z.flat))
         self.fileh.createArray(
