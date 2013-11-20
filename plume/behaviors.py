@@ -340,6 +340,7 @@ class ChainTargetChoosers(object):
 class DUCBBased(DifferentiableFn):
     def __init__(self, predictor):
         self.predictor = predictor
+        self.master_uav = None
 
     def _eval_common_terms(
             self, eval_fn, eval_derivative, x, uav, noisy_states):
@@ -356,9 +357,12 @@ class DUCBBased(DifferentiableFn):
             pred_derivative = mse_derivative = None
         sq_dist = self._calc_dist(x, pos)
 
-        uav_dist = [self._calc_dist(
-            x, np.atleast_2d(noisy_states[i].position))
-            for i in xrange(len(noisy_states)) if i != uav]
+        if uav == self.master_uav:
+            uav_dist = np.zeros(len(noisy_states) - 1)
+        else:
+            uav_dist = [self._calc_dist(
+                x, np.atleast_2d(noisy_states[i].position))
+                for i in xrange(len(noisy_states)) if i != uav]
 
         return (pred, pred_derivative, np.atleast_2d(mse).T, mse_derivative,
                 sq_dist, uav_dist)
@@ -414,6 +418,9 @@ class PDUCB(DUCBBased):
         self.rho = rho
 
     def _eval_fn(self, common_terms, x, uav, noisy_states):
+        if self.master_uav is None:
+            self.master_uav = uav
+
         pred, unused, mse, unused, sq_dist, uav_dist = common_terms
         pred = np.maximum(0, pred)
         epred = np.exp(-pred / self.tau)
@@ -426,9 +433,12 @@ class PDUCB(DUCBBased):
     def _eval_derivative(self, common_terms, x, uav, noisy_states):
         pred, pred_derivative, mse, mse_derivative, sq_dist, uav_dist = \
             common_terms
-        uav_dist_der = np.nan_to_num(2 * np.mean(
-            [x - s.position for s in noisy_states
-             if s is not noisy_states[uav]]))
+        if uav == self.master_uav:
+            uav_dist_der = 0
+        else:
+            uav_dist_der = np.nan_to_num(2 * np.mean(
+                [x - s.position for s in noisy_states
+                 if s is not noisy_states[uav]]))
 
         pred = np.maximum(0, pred)
         epred = np.exp(-pred / self.tau)
