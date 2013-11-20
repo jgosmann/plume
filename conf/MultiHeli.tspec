@@ -10,4 +10,4 @@ kappa = 1.25e9
 scaling = "'auto'"
 gamma = -1e-7
 _search = "'complete'", "'wind'"
-_rho = 0, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2
+_rho = 0, 1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5
