@@ -1,12 +1,12 @@
-experiment = MultiSourceGaussianDispersion
-task = TaskPlumeMultiSourceGaussianDispersionDefaultControls
+experiment = SingleSourceGaussianDispersion
+task = TaskPlumeSingleSourceGaussianDispersionDefaultControls
 
 __cmd__ = """~/bin/fridge -- run -e {experiment} -r 'Testing algorithm with noise.' python plume/plume.py -o {__name__!q} -c {configfile!t} -t {__repeat__} -q"""
 configfile = conf/noise.py.in
 
 acq_fn = """('behaviors', 'PDUCB', (), dict(
     kappa=kappa, scaling=scaling, gamma=gamma, rho=0, epsilon=1e-30))"""
-kappa = 1.25e9
-_scaling = 70
+_kappa = 1.25e10
+_scaling = "'auto'"
 gamma = -1e-7
 _search = "'complete'", "'wind'"
