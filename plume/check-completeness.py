@@ -39,8 +39,8 @@ def print_tspec_block(paramstr, behavior, kappa, gamma, scaling, trial):
     scaling = {s!r}
     repeat = {r}
 '''.format(
-        blockname=paramstr[1:], behavior_stmt=behavior_stmt, k=kappa, g=gamma,
-        s=scaling, r=trial)
+        blockname=paramstr[1:] + ' ' + str(trial), behavior_stmt=behavior_stmt,
+        k=kappa, g=gamma, s=scaling, r=trial)
 
 
 if __name__ == '__main__':
