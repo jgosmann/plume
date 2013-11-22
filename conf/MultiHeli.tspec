@@ -6,8 +6,8 @@ configfile = conf/noise.py.in
 
 acq_fn = """('behaviors', 'PDUCB', (), dict(
     kappa=kappa, scaling=scaling, gamma=gamma, rho=rho, epsilon=1e-30))"""
-_kappa = 1.25e10
-_scaling = "'auto'"
+_kappa = 1.25e10,
+_scaling = "'auto'",
 gamma = -1e-7
 _search = "'complete'", "'wind'"
 _rho = 0, 1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5
