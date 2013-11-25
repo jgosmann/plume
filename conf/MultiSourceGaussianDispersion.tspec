@@ -12,3 +12,4 @@ _kappa = 2.0e9,
 _scaling = 70,
 gamma = -1e-7
 _search = "'complete'", "'wind'"
+rho = 0
