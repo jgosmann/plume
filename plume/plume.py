@@ -5,9 +5,11 @@ import logging
 import os.path
 import sys
 
+import numpy as np
 import numpy.random as rnd
 import pexpect
 from qrsim.tcpclient import UAVControls
+from scipy.stats import gaussian_kde
 import tables
 
 import behaviors
@@ -128,6 +130,55 @@ def do_simulation_run(trial, output_filename, conf, client):
                 pass
 
 
+def get_correction_factor(trial, conf, client):
+    rnd.seed(conf['pyseedlist'][trial])
+    with tables.openFile('tmp', 'w') as fileh:
+        tbl = fileh.createVLArray(
+            '/', 'conf', tables.ObjectAtom(),
+            title='Configuration used to generate the stored data.')
+        tbl.append(conf)
+        fileh.createArray(
+            '/', 'repeat', [trial], title='Number of repeat run.')
+
+        num_steps = conf['duration_in_steps']
+        kernel = instantiate(*conf['kernel'])
+        predictor = instantiate(*conf['predictor'], prefix_args=(kernel,))
+        if 'bounds' in conf:
+            predictor.bounds = conf['bounds']
+        if 'priors' in conf:
+            for i in range(len(conf['priors'])):
+                predictor.priors[i] = instantiate(*conf['priors'][i])
+
+        recorder = TaskPlumeRecorder(fileh, client, predictor, 1)
+        err_recorder = ErrorRecorder(fileh, client, predictor, 1)
+
+        target_chooser = behaviors.ChainTargetChoosers([
+            behaviors.SurroundArea(conf['area'], conf['margin']),
+            behaviors.AcquisitionFnTargetChooser(
+                instantiate(*conf['acquisition_fn'], predictor=predictor),
+                conf['area'], conf['margin'], conf['grid_resolution'])])
+        controller = behaviors.FollowWaypoints(
+            target_chooser, conf['target_precision'])
+        updater = instantiate(
+            *conf['updater'], predictor=predictor, plume_recorder=recorder)
+        controller.observers.append(updater)
+
+        behavior = controller.velocity_controller
+
+        if conf['full_record']:
+            client = ControlsRecorder(fileh, client, num_steps)
+        sim_controller = Controller(client, controller, behavior)
+        sim_controller.init_new_sim(conf['seedlist'][trial])
+
+        recorder.init(conf)
+        err_recorder.init(conf)
+        volume = np.product(np.diff(conf['area'], axis=1))
+        print volume
+        test_x = err_recorder.test_x.T
+        return np.sqrt(len(test_x) / np.sum(
+            1.0 / gaussian_kde(test_x)(test_x) ** 2) / volume)
+
+
 class QRSimApplication(object):
     def __init__(self):
         self.parser = argparse.ArgumentParser()
@@ -195,6 +246,9 @@ class Plume(QRSimApplication):
         self.parser.add_argument(
             '-t', '--trial', nargs=1, type=int, required=False,
             help='Only run the given trial.')
+        self.parser.add_argument(
+            '--error-correction', action='store_true',
+            help='Store error correction factors.')
 
     def _run_application(self, args, conf, client):
         clean = True
@@ -202,14 +256,27 @@ class Plume(QRSimApplication):
             trials = args.trial
         else:
             trials = xrange(conf['repeats'])
+
+        err_cor = []
+
         for i in trials:
             try:
-                output_filename = os.path.join(
-                    args.output_dir[0], args.output[0] + '.%i.h5' % i)
-                do_simulation_run(i, output_filename, conf, client)
+                if args.error_correction:
+                    err_cor.append(get_correction_factor(i, conf, client))
+                else:
+                    output_filename = os.path.join(
+                        args.output_dir[0], args.output[0] + '.%i.h5' % i)
+                    do_simulation_run(i, output_filename, conf, client)
             except:
                 logger.exception('Repeat failed.', exc_info=True)
                 clean = False
+
+        if len(err_cor) > 0:
+            output_filename = os.path.join(
+                args.output_dir[0], args.output[0] + '.errcor.h5')
+            with tables.openFile(output_filename, 'w') as fileh:
+                fileh.createArray(
+                    '/', 'errcor', err_cor, title='Error correction.')
         return clean
 
 
