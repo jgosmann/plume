@@ -8,7 +8,7 @@ def setup():
     mpl.rcParams['lines.markeredgewidth'] = 0.2 * ltx_to_mpl_pt_factor
     mpl.rcParams['lines.markersize'] = 2.4 * ltx_to_mpl_pt_factor
     mpl.rcParams['patch.linewidth'] = 0.4 * ltx_to_mpl_pt_factor
-    mpl.rcParams['font.size'] = 4.8 * ltx_to_mpl_pt_factor
+    mpl.rcParams['font.size'] = 6 * ltx_to_mpl_pt_factor
     mpl.rcParams['axes.linewidth'] = 0.4 * ltx_to_mpl_pt_factor
     #mpl.rcParams['axes.labelsize'] = 'large'
 
