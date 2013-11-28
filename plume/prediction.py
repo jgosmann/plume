@@ -767,14 +767,13 @@ def predict_on_volume(predictor, area, grid_resolution):
         area, grid_resolution)]
     x, y, z = meshgrid_nd(*ogrid)
 
-    pred, mse = predictor.predict(
-        np.column_stack((x.flat, y.flat, z.flat)), eval_MSE=True)
+    pred = predictor.predict(
+        np.column_stack((x.flat, y.flat, z.flat)), eval_MSE=False)
     np.maximum(0, pred, out=pred)
 
     assert x.shape == y.shape and y.shape == z.shape
     pred = pred.reshape(x.shape)
-    mse = mse.reshape(x.shape)
-    return pred, mse, (x, y, z)
+    return pred, (x, y, z)
 
 
 class ZeroPredictor(object):

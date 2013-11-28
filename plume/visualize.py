@@ -179,6 +179,7 @@ class PlumeVisualizer(HasTraits):
     prediction = Instance(MlabSceneModel, ())
     mse = Instance(MlabSceneModel, ())
     truth = Instance(MlabSceneModel, ())
+    blubb = Instance(MlabSceneModel, ())
 
     prediction_cutoff = Range(0.0, 1.0, 0.7)
     mse_cutoff = Range(0.0, 1.0, 0.5)
@@ -192,21 +193,26 @@ class PlumeVisualizer(HasTraits):
                 Item('mse_cutoff', width=200),
             ),
             VSplit(
-                Item(
-                    'prediction', show_label=False,
-                    editor=SceneEditor(scene_class=ThinToolbarEditor)),
+                HSplit(
+                    Item(
+                        'prediction', show_label=False,
+                        editor=SceneEditor(scene_class=ThinToolbarEditor)),
+                    Item(
+                        'blubb', show_label=False,
+                        editor=SceneEditor(scene_class=ThinToolbarEditor)),
+                ),
                 HSplit(
                     Item(
                         'mse', show_label=False,
                         editor=SceneEditor(scene_class=ThinToolbarEditor)),
                     Item(
-                        'truth', show_label=False, width=300,
+                        'truth', show_label=False,
                         editor=SceneEditor(scene_class=ThinToolbarEditor))
                 )
             )
         ), resizable=True, height=1.0, width=1.0)
 
-    def __init__(self, data, end=None, plain=False):
+    def __init__(self, data, end=None, plain=False, plot_traj=None):
         HasTraits.__init__(self)
         self.conf = data.root.conf[0]
         self.render_prediction_with_preview = PreviewEnabledRenderingFunction(
@@ -219,6 +225,9 @@ class PlumeVisualizer(HasTraits):
         else:
             self.end = end
         self.plain = plain
+        if plot_traj is None:
+            plot_traj = not plain
+        self.plot_traj = plot_traj
 
         self._init_scene(self.prediction)
         self._init_scene(self.mse)
@@ -244,18 +253,14 @@ class PlumeVisualizer(HasTraits):
             mlab.title(title, figure=scene.mayavi_scene)
 
     def _plot_fit(self):
-        pred, mse, positions = self.calc_estimation(self.data)
+        pred, positions = self.calc_estimation(self.data)
         self._prediction_volume = self.plot_volume2(
             positions, pred, self.prediction_cutoff,
             figure=self.prediction.mayavi_scene)
-        self._mse_volume = self.plot_volume2(
-            positions, mse, self.prediction_cutoff,
-            figure=self.mse.mayavi_scene)
 
-    def _plot_plume(self):
         area = self.conf['area']
         ogrid = [np.linspace(*dim, num=res) for dim, res in zip(
-            area, (29, 29, 9))]
+            area, (30, 30, 20))]
         x, y, z = meshgrid_nd(*ogrid)
         values = griddata(
             self.data.root.gt_locations.read(),
@@ -268,12 +273,16 @@ class PlumeVisualizer(HasTraits):
                 *self.data.root.sample_locations.read().T, scale_factor=5,
                 color=(0.7, 0.0, 0.0), figure=self.truth.mayavi_scene)
 
+        self._mse_volume = self.plot_volume2(
+            (x, y, z), np.abs(values - pred), 0.1,
+            figure=self.mse.mayavi_scene, blue=True)
+
     # FIXME think of better name
     @classmethod
     @current_figure_as_default
-    def plot_volume2(cls, positions, data, cutoff, figure):
+    def plot_volume2(cls, positions, data, cutoff, figure, blue=False):
         vol = cls.plot_volume(positions, data, figure)
-        cls._set_cutoff(vol, cutoff)
+        cls._set_cutoff(vol, 0, blue)
         return vol
 
     @on_trait_change('prediction.activated, mse.activated, truth.activated')
@@ -296,20 +305,27 @@ class PlumeVisualizer(HasTraits):
             self._plot_fit()
         except:
             traceback.print_exc()
-        self._plot_plume()
-        extent = [-150, 140, -140, 150, -85, 0]
-        ax = mlab.axes(extent=extent, xlabel='', ylabel='', zlabel='')
-        ax.axes.number_of_labels = 3
-        ax.axes.corner_offset = 0.05
-        ax.axes.label_format = '%2.0f'
-        ax.label_text_property.italic = False
-        ax.label_text_property.bold = False
-        ax.axes.font_factor = 2
-        ax.axes.ranges = [-140, 140, -140, 140, -80, 0]
-        ax.axes.use_ranges = True
+        #extent = [-150, 140, -140, 150, -85, 0]
+        #ax = mlab.axes(extent=extent, xlabel='', ylabel='', zlabel='')
+        #ax.axes.number_of_labels = 3
+        #ax.axes.corner_offset = 0.05
+        #ax.axes.label_format = '%2.0f'
+        #ax.label_text_property.italic = False
+        #ax.label_text_property.bold = False
+        #ax.axes.font_factor = 2
+        #ax.axes.ranges = [-140, 140, -140, 140, -80, 0]
+        #ax.axes.use_ranges = True
 
         x, y = np.meshgrid([-140, 140], [-140, 140], indexing='ij')
-        mlab.surf(x, y, np.zeros_like(x, 'd'), color=(1.0, 1.0, 1.0))
+        mlab.surf(
+            x, y, np.zeros_like(x, 'd'), color=(1.0, 1.0, 1.0),
+            figure=self.prediction.mayavi_scene)
+        mlab.surf(
+            x, y, np.zeros_like(x, 'd'), color=(1.0, 1.0, 1.0),
+            figure=self.truth.mayavi_scene)
+        mlab.surf(
+            x, y, np.zeros_like(x, 'd'), color=(1.0, 1.0, 1.0),
+            figure=self.mse.mayavi_scene)
 
         mlab.sync_camera(self.prediction.mayavi_scene, self.mse.mayavi_scene)
         mlab.sync_camera(self.mse.mayavi_scene, self.prediction.mayavi_scene)
@@ -324,10 +340,10 @@ class PlumeVisualizer(HasTraits):
 
     @current_figure_as_default
     def plot_uav_trajectory(self, positions, figure):
-        if self.plain:
-            opacity = 0.0
-        else:
+        if self.plot_traj:
             opacity = 1.0
+        else:
+            opacity = 0.0
         mlab.plot3d(
             *positions.T, tube_radius=1, line_width=0,
             color=self.trajectory_color, opacity=opacity, figure=figure)
@@ -357,19 +373,19 @@ class PlumeVisualizer(HasTraits):
             x, y, z, values, figure=figure, colormap='Reds')
         volume = mlab.pipeline.volume(sf, vmin=vmin, vmax=vmax, figure=figure)
 
-        im1 = mlab.imshow(
-            np.max(values, axis=1), vmin=vmin, vmax=vmax, figure=figure)
-        im1.actor.orientation = [90, 0, 0]
-        im1.actor.position = [5, -140, -35]
-        im1.actor.scale = [10, 10, 0]
+        #im1 = mlab.imshow(
+            #np.max(values, axis=1), vmin=vmin, vmax=vmax, figure=figure)
+        #im1.actor.orientation = [90, 0, 0]
+        #im1.actor.position = [5, -140, -35]
+        #im1.actor.scale = [10, 10, 0]
 
-        im2 = mlab.imshow(
-            np.max(values, axis=0), vmin=vmin, vmax=vmax, figure=figure)
-        im2.actor.orientation = [90, 90, 0]
-        im2.actor.position = [140, 5, -35]
-        im2.actor.scale = [10, 10, 0]
+        #im2 = mlab.imshow(
+            #np.max(values, axis=0), vmin=vmin, vmax=vmax, figure=figure)
+        #im2.actor.orientation = [90, 90, 0]
+        #im2.actor.position = [140, 5, -35]
+        #im2.actor.scale = [10, 10, 0]
 
-        cls._color_im_planes([im1, im2])
+        #cls._color_im_planes([im1, im2])
         return volume
 
     @staticmethod
@@ -387,7 +403,7 @@ class PlumeVisualizer(HasTraits):
             ip.module_manager.scalar_lut_manager.lut.table = lut
 
     @staticmethod
-    def _set_cutoff(volume, cutoff):
+    def _set_cutoff(volume, cutoff, blue=False):
         range_min, range_max = volume.current_range
 
         otf = PiecewiseFunction()
@@ -398,8 +414,12 @@ class PlumeVisualizer(HasTraits):
 
         ctf = ColorTransferFunction()
         ctf.range = volume.current_range
-        ctf.add_rgb_point(range_min, 1.0, 0.275, 0.0)
-        ctf.add_rgb_point(range_max, 1.0, 0.275, 0.0)
+        if blue:
+            ctf.add_rgb_point(range_min, 0.0, 0.49, 0.8)
+            ctf.add_rgb_point(range_max, 0.0, 0.49, 0.8)
+        else:
+            ctf.add_rgb_point(range_min, 1.0, 0.275, 0.0)
+            ctf.add_rgb_point(range_max, 1.0, 0.275, 0.0)
         volume._ctf = ctf
         volume.volume_property.set_color(ctf)
         set_lut(volume.lut_manager.lut, volume.volume_property)
@@ -421,6 +441,8 @@ if __name__ == '__main__':
         '-t', nargs=1, type=int, help='Number of steps to visualize.')
     parser.add_argument(
         '-p', '--plain', action='store_true', help='Show only plume')
+    parser.add_argument(
+        '--trajectory', action='store_true', help='Plot trajectory.')
     parser.add_argument('filename', nargs=1, type=str)
     args = parser.parse_args()
 
@@ -428,5 +450,5 @@ if __name__ == '__main__':
         end = None
         if args.t is not None:
             end = args.t[0]
-        visualizer = PlumeVisualizer(data, end, args.plain)
+        visualizer = PlumeVisualizer(data, end, args.plain, args.trajectory)
         visualizer.configure_traits()
