@@ -83,15 +83,33 @@ def do_simulation_run(trial, output_filename, conf, client):
         recorder = TaskPlumeRecorder(fileh, client, predictor, num_steps)
         err_recorder = ErrorRecorder(fileh, client, predictor, num_steps)
 
-        target_chooser = behaviors.ChainTargetChoosers([
-            behaviors.SurroundArea(conf['area'], conf['margin']),
-            behaviors.AcquisitionFnTargetChooser(
-                instantiate(*conf['acquisition_fn'], predictor=predictor),
-                conf['area'], conf['margin'], conf['grid_resolution'])])
-        controller = behaviors.FollowWaypoints(
-            target_chooser, conf['target_precision'])
         updater = instantiate(
             *conf['updater'], predictor=predictor, plume_recorder=recorder)
+
+        acq_behavior = behaviors.AcquisitionFnTargetChooser(
+            instantiate(*conf['acquisition_fn'], predictor=predictor),
+            conf['area'], conf['margin'], conf['grid_resolution'])
+        if 'noise_search' in conf:
+            if conf['noise_search'] == 'wind':
+                tc_factory = behaviors.WindBasedPartialSurroundFactory(
+                    client, conf['area'], conf['margin'])
+            else:
+                tc_factory = behaviors.SurroundAreaFactory(
+                    conf['area'], conf['margin'])
+            surrounder = behaviors.SurroundUntilFound(updater, tc_factory)
+            surrounder.observers.append(recorder)
+            target_chooser = behaviors.ChainTargetChoosers(
+                [surrounder, acq_behavior])
+            maxv = 4
+        else:
+            target_chooser = behaviors.ChainTargetChoosers([
+                behaviors.SurroundArea(conf['area'], conf['margin']),
+                acq_behavior])
+            maxv = 6
+        controller = behaviors.FollowWaypoints(
+            target_chooser, conf['target_precision'],
+            behaviors.VelocityTowardsWaypointController(
+                maxv, maxv, target_chooser.get_effective_area()))
         controller.observers.append(updater)
 
         behavior = controller.velocity_controller
