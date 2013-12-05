@@ -298,15 +298,15 @@ class PlumeVisualizer(HasTraits):
             traceback.print_exc()
         self._plot_plume()
         extent = [-150, 140, -140, 150, -85, 0]
-        ax = mlab.axes(extent=extent, xlabel='', ylabel='', zlabel='')
-        ax.axes.number_of_labels = 3
-        ax.axes.corner_offset = 0.05
-        ax.axes.label_format = '%2.0f'
-        ax.label_text_property.italic = False
-        ax.label_text_property.bold = False
-        ax.axes.font_factor = 2
-        ax.axes.ranges = [-140, 140, -140, 140, -80, 0]
-        ax.axes.use_ranges = True
+        #ax = mlab.axes(extent=extent, xlabel='', ylabel='', zlabel='')
+        #ax.axes.number_of_labels = 3
+        #ax.axes.corner_offset = 0.05
+        #ax.axes.label_format = '%2.0f'
+        #ax.label_text_property.italic = False
+        #ax.label_text_property.bold = False
+        #ax.axes.font_factor = 2
+        #ax.axes.ranges = [-140, 140, -140, 140, -80, 0]
+        #ax.axes.use_ranges = True
 
         x, y = np.meshgrid([-140, 140], [-140, 140], indexing='ij')
         mlab.surf(x, y, np.zeros_like(x, 'd'), color=(1.0, 1.0, 1.0))
@@ -324,10 +324,10 @@ class PlumeVisualizer(HasTraits):
 
     @current_figure_as_default
     def plot_uav_trajectory(self, positions, figure):
-        if self.plain:
-            opacity = 0.0
-        else:
-            opacity = 1.0
+        #if self.plain:
+            #opacity = 0.0
+        #else:
+        opacity = 1.0
         mlab.plot3d(
             *positions.T, tube_radius=1, line_width=0,
             color=self.trajectory_color, opacity=opacity, figure=figure)
@@ -357,19 +357,19 @@ class PlumeVisualizer(HasTraits):
             x, y, z, values, figure=figure, colormap='Reds')
         volume = mlab.pipeline.volume(sf, vmin=vmin, vmax=vmax, figure=figure)
 
-        im1 = mlab.imshow(
-            np.max(values, axis=1), vmin=vmin, vmax=vmax, figure=figure)
-        im1.actor.orientation = [90, 0, 0]
-        im1.actor.position = [5, -140, -35]
-        im1.actor.scale = [10, 10, 0]
+        #im1 = mlab.imshow(
+            #np.max(values, axis=1), vmin=vmin, vmax=vmax, figure=figure)
+        #im1.actor.orientation = [90, 0, 0]
+        #im1.actor.position = [5, -140, -35]
+        #im1.actor.scale = [10, 10, 0]
 
-        im2 = mlab.imshow(
-            np.max(values, axis=0), vmin=vmin, vmax=vmax, figure=figure)
-        im2.actor.orientation = [90, 90, 0]
-        im2.actor.position = [140, 5, -35]
-        im2.actor.scale = [10, 10, 0]
+        #im2 = mlab.imshow(
+            #np.max(values, axis=0), vmin=vmin, vmax=vmax, figure=figure)
+        #im2.actor.orientation = [90, 90, 0]
+        #im2.actor.position = [140, 5, -35]
+        #im2.actor.scale = [10, 10, 0]
 
-        cls._color_im_planes([im1, im2])
+        #cls._color_im_planes([im1, im2])
         return volume
 
     @staticmethod
